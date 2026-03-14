@@ -63,3 +63,35 @@ body {
 .user-dot-pulse {
   animation: userDotPulse 2.4s ease-in-out infinite;
 }
+
+/* ── Spin animation (used by map loading spinner) ───────────────────────── */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* ── Dark map override for DEMO_MAP_ID (vector renderer) ────────────────── */
+/*
+ * When NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID is not set we fall back to DEMO_MAP_ID.
+ * The vector renderer ignores the `styles` prop, so the map renders in
+ * Google's default light theme. The CSS canvas filter below replicates the
+ * dark aubergine look without requiring a Cloud Console map style.
+ *
+ * The filter chain:
+ *   invert(92%)          — flip light→dark (near-black background)
+ *   hue-rotate(200deg)   — shift blue tones to the purple/aubergine range
+ *   saturate(1.3)        — punch up the colour slightly
+ *   brightness(0.88)     — soften the overall brightness
+ *
+ * When a real Cloud Console Map ID is provided (.pulse-map-dark is NOT added)
+ * the filter is not applied and the Cloud Console aubergine style takes over.
+ */
+.pulse-map-dark .gm-style canvas {
+  filter: invert(92%) hue-rotate(200deg) saturate(1.3) brightness(0.88);
+}
+/* Keep UI overlays (info windows, controls) unaffected by the canvas filter */
+.pulse-map-dark .gm-style > div:not(:first-child) {
+  filter: none;
+}

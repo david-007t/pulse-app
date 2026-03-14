@@ -9,6 +9,24 @@ interface VenueMarkerProps {
   onClick: () => void;
 }
 
+// White cocktail-glass SVG icon (martini silhouette)
+function CocktailIcon({ size }: { size: number }) {
+  const iconSize = Math.round(size * 0.52);
+  return (
+    <svg
+      width={iconSize}
+      height={iconSize}
+      viewBox="0 0 24 24"
+      fill="white"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ display: "block", pointerEvents: "none" }}
+    >
+      {/* Martini glass shape */}
+      <path d="M21 5H3l9 9.5V19h-3v2h8v-2h-3v-4.5L21 5zm-9 7.3L5.4 7h13.2L12 12.3z" />
+    </svg>
+  );
+}
+
 export default function VenueMarker({
   venue,
   isSelected,
@@ -24,9 +42,14 @@ export default function VenueMarker({
       zIndex={isSelected ? 10 : 1}
     >
       <div
-        style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}
+        style={{
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
-        {/* Pulsing ring — only for busy venues */}
+        {/* Pulsing pink glow ring — busy venues only */}
         {venue.isBusy && (
           <span
             className="marker-pulse"
@@ -41,7 +64,7 @@ export default function VenueMarker({
           />
         )}
 
-        {/* Selected ring */}
+        {/* Selection ring */}
         {isSelected && (
           <span
             style={{
@@ -49,15 +72,14 @@ export default function VenueMarker({
               width: size + 10,
               height: size + 10,
               borderRadius: "50%",
-              border: "2px solid rgba(124,58,237,0.6)",
+              border: `2px solid ${color}99`,
               boxSizing: "border-box",
             }}
           />
         )}
 
-        {/* Main dot */}
+        {/* Main filled circle */}
         <div
-          onClick={onClick}
           style={{
             width: size,
             height: size,
@@ -66,17 +88,18 @@ export default function VenueMarker({
             border: "2.5px solid rgba(255,255,255,0.85)",
             boxShadow: isSelected
               ? `0 0 0 4px ${color}40, 0 6px 16px rgba(0,0,0,0.5)`
+              : venue.isBusy
+              ? `0 0 12px ${color}80, 0 2px 8px rgba(0,0,0,0.4)`
               : "0 2px 8px rgba(0,0,0,0.4)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             cursor: "pointer",
             transition: "width 0.15s ease, height 0.15s ease",
-            fontSize: isSelected ? 16 : 13,
             userSelect: "none",
           }}
         >
-          🍸
+          <CocktailIcon size={size} />
         </div>
 
         {/* Name label when selected */}

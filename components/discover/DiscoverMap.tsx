@@ -6,6 +6,7 @@ import {
   Map,
   AdvancedMarker,
   useMap,
+  useApiLoadingStatus,
 } from "@vis.gl/react-google-maps";
 import VenueMarker from "./VenueMarker";
 import VenueBottomSheet from "./VenueBottomSheet";
@@ -15,6 +16,18 @@ import { AUBERGINE_STYLE } from "@/lib/mapStyles";
 import type { Venue } from "@/types/venue";
 
 const NASHVILLE = { lat: 36.1627, lng: -86.7816 };
+
+// Build-time constants — safe to read at module scope in client components
+const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
+// Always provide a mapId so AdvancedMarker never warns about "no valid Map ID".
+// DEMO_MAP_ID enables the vector renderer in development without a Cloud Console ID.
+// When NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID is set we use the real Cloud Console ID,
+// which also picks up the aubergine style configured there.
+const MAP_ID =
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
+
+// True when we're falling back to DEMO_MAP_ID (vector renderer, no Cloud Console style)
+const USING_DEMO_MAP_ID = !process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID;
 
 // ---------------------------------------------------------------------------
 // MapController — child of <Map> so it can call useMap()
@@ -64,9 +77,71 @@ function UserDot({ position }: { position: { lat: number; lng: number } }) {
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// Fallback UI helpers
 // ---------------------------------------------------------------------------
-export default function DiscoverMap() {
+function MapConfigError() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4 px-8">
+      <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-2xl">
+        🗺️
+      </div>
+      <p className="text-text font-semibold text-center">Map not configured</p>
+      <p className="text-subtext text-sm text-center leading-relaxed">
+        Add{" "}
+        <code className="text-primary bg-surface px-1.5 py-0.5 rounded text-xs">
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+        </code>{" "}
+        to your{" "}
+        <code className="text-primary bg-surface px-1.5 py-0.5 rounded text-xs">
+          .env.local
+        </code>{" "}
+        to enable the live map.
+      </p>
+    </div>
+  );
+}
+
+function MapLoadingState() {
+  return (
+    <div className="flex items-center justify-center h-full w-full">
+      <div className="flex flex-col items-center gap-3">
+        <div
+          className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin"
+          style={{ animationDuration: "0.8s" }}
+        />
+        <p className="text-subtext text-sm">Loading map…</p>
+      </div>
+    </div>
+  );
+}
+
+function MapErrorState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full gap-4 px-8">
+      <div className="w-14 h-14 rounded-2xl bg-accent/20 flex items-center justify-center text-2xl">
+        ⚠️
+      </div>
+      <p className="text-text font-semibold text-center">
+        Couldn&apos;t load the map
+      </p>
+      <p className="text-subtext text-sm text-center leading-relaxed">
+        Check that your{" "}
+        <code className="text-primary bg-surface px-1.5 py-0.5 rounded text-xs">
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+        </code>{" "}
+        is valid and that the Maps JavaScript API is enabled in your Google
+        Cloud project.
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MapInner — lives inside <APIProvider>, can use useApiLoadingStatus
+// ---------------------------------------------------------------------------
+function MapInner() {
+  const apiStatus = useApiLoadingStatus();
+
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
@@ -79,21 +154,6 @@ export default function DiscoverMap() {
   const [selectedVenue, setSelectedVenue] = useState<Venue | null>(null);
   const [loading, setLoading] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
-  const [apiKeyMissing, setApiKeyMissing] = useState(false);
-
-  /*
-   * mapId strategy:
-   *   • Undefined (no mapId set) → raster renderer → AUBERGINE_STYLE applies ✓
-   *     AdvancedMarker works without mapId in @vis.gl/react-google-maps v1.7.1
-   *   • Custom mapId from Cloud Console → vector renderer → styles prop ignored;
-   *     apply the aubergine JSON in Cloud Console → Map Styles instead.
-   */
-  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || undefined;
-  const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-
-  useEffect(() => {
-    if (!mapsApiKey) setApiKeyMissing(true);
-  }, [mapsApiKey]);
 
   // ── Geolocation ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -156,12 +216,9 @@ export default function DiscoverMap() {
   }, [mapCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Search selection ──────────────────────────────────────────────────────
-  const handleSearchSelect = useCallback(
-    (lat: number, lng: number) => {
-      setMapCenter({ lat, lng });
-    },
-    []
-  );
+  const handleSearchSelect = useCallback((lat: number, lng: number) => {
+    setMapCenter({ lat, lng });
+  }, []);
 
   const handleMarkerClick = useCallback((venue: Venue) => {
     setSelectedVenue((prev) => (prev?.id === venue.id ? null : venue));
@@ -169,56 +226,44 @@ export default function DiscoverMap() {
 
   const initialCenter = userLocation ?? NASHVILLE;
 
-  // ── API key missing fallback ──────────────────────────────────────────────
-  if (apiKeyMissing) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 px-8">
-        <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-2xl">
-          🗺️
-        </div>
-        <p className="text-text font-semibold text-center">Map not configured</p>
-        <p className="text-subtext text-sm text-center leading-relaxed">
-          Add{" "}
-          <code className="text-primary bg-surface px-1.5 py-0.5 rounded text-xs">
-            NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
-          </code>{" "}
-          to your <code className="text-primary bg-surface px-1.5 py-0.5 rounded text-xs">.env.local</code> to enable the live map.
-        </p>
-      </div>
-    );
-  }
+  // ── API status gates ──────────────────────────────────────────────────────
+  if (apiStatus === "LOADING") return <MapLoadingState />;
+  if (apiStatus === "FAILED" || apiStatus === "AUTH_FAILURE")
+    return <MapErrorState />;
 
   return (
-    <div className="relative h-full w-full">
-      <APIProvider apiKey={mapsApiKey}>
-        {/* ── Map ──────────────────────────────────────────────────────── */}
-        <Map
-          /*
-           * When mapId is undefined → raster renderer → AUBERGINE_STYLE applied below ✓
-           * When mapId is set (Cloud Console) → vector renderer → configure style there.
-           */
-          mapId={mapId}
-          defaultCenter={initialCenter}
-          defaultZoom={15}
-          disableDefaultUI
-          gestureHandling="greedy"
-          style={{ width: "100%", height: "100%" }}
-          styles={AUBERGINE_STYLE}
-        >
-          {userLocation && <UserDot position={userLocation} />}
+    <>
+      {/* ── Map ──────────────────────────────────────────────────────── */}
+      <Map
+        /*
+         * MAP_ID is always set (DEMO_MAP_ID in dev, Cloud Console ID in prod).
+         * With DEMO_MAP_ID → vector renderer, styles prop is ignored, so we
+         * apply a CSS canvas filter (.pulse-map-dark) to fake the dark theme.
+         * With a real Cloud Console ID → configure aubergine style there.
+         */
+        mapId={MAP_ID}
+        defaultCenter={initialCenter}
+        defaultZoom={15}
+        disableDefaultUI
+        gestureHandling="greedy"
+        style={{ width: "100%", height: "100%" }}
+        // styles prop only works on raster renderer (no mapId).
+        // Kept here as a no-op safety net; real dark theme via CSS or Cloud Console.
+        styles={AUBERGINE_STYLE}
+      >
+        {userLocation && <UserDot position={userLocation} />}
 
-          {venues.map((venue) => (
-            <VenueMarker
-              key={venue.id}
-              venue={venue}
-              isSelected={selectedVenue?.id === venue.id}
-              onClick={() => handleMarkerClick(venue)}
-            />
-          ))}
+        {venues.map((venue) => (
+          <VenueMarker
+            key={venue.id}
+            venue={venue}
+            isSelected={selectedVenue?.id === venue.id}
+            onClick={() => handleMarkerClick(venue)}
+          />
+        ))}
 
-          <MapController center={mapCenter} />
-        </Map>
-      </APIProvider>
+        <MapController center={mapCenter} />
+      </Map>
 
       {/* ── Search bar overlay ───────────────────────────────────────── */}
       <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-12">
@@ -248,6 +293,26 @@ export default function DiscoverMap() {
         userLocation={userLocation ?? NASHVILLE}
         loading={loading}
       />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DiscoverMap — outer shell: guards missing key, provides APIProvider
+// ---------------------------------------------------------------------------
+export default function DiscoverMap() {
+  if (!MAPS_API_KEY) return <MapConfigError />;
+
+  return (
+    <div
+      className={`relative h-full w-full${USING_DEMO_MAP_ID ? " pulse-map-dark" : ""}`}
+    >
+      {/* Suppress Google's own error overlay — we render our own */}
+      <style>{`.gm-err-container { display: none !important; }`}</style>
+
+      <APIProvider apiKey={MAPS_API_KEY}>
+        <MapInner />
+      </APIProvider>
     </div>
   );
 }
