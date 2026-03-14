@@ -13,6 +13,10 @@ const FIELD_MASK = [
   "places.rating",
   "places.userRatingCount",
   "places.priceLevel",
+  // types: used for Bars/Clubs category filter
+  "places.types",
+  // photos: first entry used as card / list-item thumbnail
+  "places.photos",
 ].join(",");
 
 export async function POST(req: NextRequest) {

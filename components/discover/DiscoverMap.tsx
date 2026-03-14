@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   APIProvider,
   Map,
@@ -10,24 +10,61 @@ import {
 } from "@vis.gl/react-google-maps";
 import VenueMarker from "./VenueMarker";
 import VenueBottomSheet from "./VenueBottomSheet";
+import VenueDetailSheet from "./VenueDetailSheet";
+import VenueListView from "./VenueListView";
 import SearchBar from "./SearchBar";
+import FilterBar, {
+  DEFAULT_FILTERS,
+  type ActiveFilters,
+} from "./FilterBar";
 import { parsePlacesResponse } from "@/lib/venueUtils";
 import { AUBERGINE_STYLE } from "@/lib/mapStyles";
-import type { Venue } from "@/types/venue";
+import type { Venue, VenueDetails } from "@/types/venue";
 
 const NASHVILLE = { lat: 36.1627, lng: -86.7816 };
 
-// Build-time constants — safe to read at module scope in client components
+// Build-time constants
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
-// Always provide a mapId so AdvancedMarker never warns about "no valid Map ID".
-// DEMO_MAP_ID enables the vector renderer in development without a Cloud Console ID.
-// When NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID is set we use the real Cloud Console ID,
-// which also picks up the aubergine style configured there.
-const MAP_ID =
-  process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
-
-// True when we're falling back to DEMO_MAP_ID (vector renderer, no Cloud Console style)
+const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 const USING_DEMO_MAP_ID = !process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID;
+
+// Overlay top offset in px — search bar + filter bar combined height
+// pt-12 (48) + SearchBar (~50) + space-y-2 (8) + FilterBar (~44) + pb-1 (4) = 154 → 164 safe
+const OVERLAY_TOP_OFFSET = 164;
+
+// ---------------------------------------------------------------------------
+// Filter application
+// ---------------------------------------------------------------------------
+function applyFilters(venues: Venue[], filters: ActiveFilters): Venue[] {
+  let result = [...venues];
+
+  // Category: bars vs clubs
+  if (filters.category === "bars") {
+    result = result.filter(
+      (v) => v.types?.includes("bar") && !v.types?.includes("night_club")
+    );
+  } else if (filters.category === "clubs") {
+    result = result.filter((v) => v.types?.includes("night_club"));
+  }
+
+  // Open now
+  if (filters.open) {
+    result = result.filter((v) => v.isOpen);
+  }
+
+  // Sort
+  if (filters.sort === "distance") {
+    result = [...result].sort(
+      (a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity)
+    );
+  } else if (filters.sort === "rating") {
+    result = [...result].sort((a, b) => b.rating - a.rating);
+  } else if (filters.sort === "busiest") {
+    result = [...result].sort((a, b) => b.busynessLevel - a.busynessLevel);
+  }
+
+  return result;
+}
 
 // ---------------------------------------------------------------------------
 // MapController — child of <Map> so it can call useMap()
@@ -39,14 +76,12 @@ function MapController({
 }) {
   const map = useMap();
   useEffect(() => {
-    if (map && center) {
-      map.panTo(center);
-    }
+    if (map && center) map.panTo(center);
   }, [map, center]);
   return null;
 }
 
-// Blue dot for the user's current position
+// Blue dot for user's current position
 function UserDot({ position }: { position: { lat: number; lng: number } }) {
   return (
     <AdvancedMarker position={position} zIndex={20}>
@@ -77,7 +112,7 @@ function UserDot({ position }: { position: { lat: number; lng: number } }) {
 }
 
 // ---------------------------------------------------------------------------
-// Fallback UI helpers
+// Fallback UI
 // ---------------------------------------------------------------------------
 function MapConfigError() {
   return (
@@ -129,19 +164,75 @@ function MapErrorState() {
         <code className="text-primary bg-surface px-1.5 py-0.5 rounded text-xs">
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
         </code>{" "}
-        is valid and that the Maps JavaScript API is enabled in your Google
-        Cloud project.
+        is valid and the Maps JavaScript API is enabled.
       </p>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// MapInner — lives inside <APIProvider>, can use useApiLoadingStatus
+// View toggle button
+// ---------------------------------------------------------------------------
+function ViewToggleButton({
+  view,
+  onToggle,
+}: {
+  view: "map" | "list";
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      className="flex-shrink-0 w-11 h-11 rounded-2xl bg-surface/95 backdrop-blur-lg border border-border flex items-center justify-center shadow-[0_4px_24px_rgba(0,0,0,0.4)] transition-all active:scale-95"
+      aria-label={view === "map" ? "Switch to list view" : "Switch to map view"}
+    >
+      {view === "map" ? (
+        // List icon
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <line x1="8" y1="6" x2="21" y2="6" />
+          <line x1="8" y1="12" x2="21" y2="12" />
+          <line x1="8" y1="18" x2="21" y2="18" />
+          <line x1="3" y1="6" x2="3.01" y2="6" />
+          <line x1="3" y1="12" x2="3.01" y2="12" />
+          <line x1="3" y1="18" x2="3.01" y2="18" />
+        </svg>
+      ) : (
+        // Map icon
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#FFFFFF"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+          <line x1="9" y1="3" x2="9" y2="18" />
+          <line x1="15" y1="6" x2="15" y2="21" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MapInner — lives inside <APIProvider>, holds all interactive state
 // ---------------------------------------------------------------------------
 function MapInner() {
   const apiStatus = useApiLoadingStatus();
 
+  // ── Core state ──────────────────────────────────────────────────────────
   const [userLocation, setUserLocation] = useState<{
     lat: number;
     lng: number;
@@ -155,7 +246,17 @@ function MapInner() {
   const [loading, setLoading] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
 
-  // ── Geolocation ──────────────────────────────────────────────────────────
+  // ── View & filter state ────────────────────────────────────────────────
+  const [view, setView] = useState<"map" | "list">("map");
+  const [filters, setFilters] = useState<ActiveFilters>(DEFAULT_FILTERS);
+
+  // ── Detail sheet state ─────────────────────────────────────────────────
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [detailVenue, setDetailVenue] = useState<Venue | null>(null);
+  const [venueDetails, setVenueDetails] = useState<VenueDetails | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  // ── Geolocation ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) {
       setUserLocation(NASHVILLE);
@@ -177,7 +278,7 @@ function MapInner() {
     );
   }, []);
 
-  // ── Fetch nearby venues ───────────────────────────────────────────────────
+  // ── Fetch nearby venues ─────────────────────────────────────────────────
   const fetchVenues = useCallback(
     async (lat: number, lng: number) => {
       setLoading(true);
@@ -210,72 +311,136 @@ function MapInner() {
   );
 
   useEffect(() => {
-    if (mapCenter) {
-      fetchVenues(mapCenter.lat, mapCenter.lng);
-    }
+    if (mapCenter) fetchVenues(mapCenter.lat, mapCenter.lng);
   }, [mapCenter]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Search selection ──────────────────────────────────────────────────────
+  // ── Open detail sheet ───────────────────────────────────────────────────
+  const openDetail = useCallback(async (venue: Venue) => {
+    setDetailVenue(venue);
+    setVenueDetails(null);
+    setIsDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const res = await fetch(
+        `/api/places/details?placeId=${encodeURIComponent(venue.id)}`
+      );
+      const data = await res.json();
+      setVenueDetails(data as VenueDetails);
+    } catch (err) {
+      console.error("[DiscoverMap] openDetail error:", err);
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    setIsDetailOpen(false);
+  }, []);
+
+  // ── Search selection ────────────────────────────────────────────────────
   const handleSearchSelect = useCallback((lat: number, lng: number) => {
     setMapCenter({ lat, lng });
   }, []);
 
-  const handleMarkerClick = useCallback((venue: Venue) => {
-    setSelectedVenue((prev) => (prev?.id === venue.id ? null : venue));
-  }, []);
+  // ── Marker click ────────────────────────────────────────────────────────
+  const handleMarkerClick = useCallback(
+    (venue: Venue) => {
+      setSelectedVenue((prev) => (prev?.id === venue.id ? null : venue));
+      openDetail(venue);
+    },
+    [openDetail]
+  );
+
+  // ── Filtered venues ─────────────────────────────────────────────────────
+  const filteredVenues = useMemo(
+    () => applyFilters(venues, filters),
+    [venues, filters]
+  );
+
+  // Keep selectedVenue in sync with filtered list
+  useEffect(() => {
+    if (
+      selectedVenue &&
+      !filteredVenues.find((v) => v.id === selectedVenue.id)
+    ) {
+      setSelectedVenue(null);
+    }
+  }, [filteredVenues, selectedVenue]);
 
   const initialCenter = userLocation ?? NASHVILLE;
 
-  // ── API status gates ──────────────────────────────────────────────────────
+  // ── API status gates ─────────────────────────────────────────────────────
   if (apiStatus === "LOADING") return <MapLoadingState />;
   if (apiStatus === "FAILED" || apiStatus === "AUTH_FAILURE")
     return <MapErrorState />;
 
   return (
     <>
-      {/* ── Map ──────────────────────────────────────────────────────── */}
-      <Map
-        /*
-         * MAP_ID is always set (DEMO_MAP_ID in dev, Cloud Console ID in prod).
-         * With DEMO_MAP_ID → vector renderer, styles prop is ignored, so we
-         * apply a CSS canvas filter (.pulse-map-dark) to fake the dark theme.
-         * With a real Cloud Console ID → configure aubergine style there.
-         */
-        mapId={MAP_ID}
-        defaultCenter={initialCenter}
-        defaultZoom={15}
-        disableDefaultUI
-        gestureHandling="greedy"
-        style={{ width: "100%", height: "100%" }}
-        // styles prop only works on raster renderer (no mapId).
-        // Kept here as a no-op safety net; real dark theme via CSS or Cloud Console.
-        styles={AUBERGINE_STYLE}
+      {/* ── Map (hidden in list view) ──────────────────────────────── */}
+      <div
+        className="absolute inset-0"
+        style={{ visibility: view === "map" ? "visible" : "hidden" }}
       >
-        {userLocation && <UserDot position={userLocation} />}
+        <Map
+          mapId={MAP_ID}
+          defaultCenter={initialCenter}
+          defaultZoom={15}
+          disableDefaultUI
+          gestureHandling="greedy"
+          style={{ width: "100%", height: "100%" }}
+          styles={AUBERGINE_STYLE}
+        >
+          {userLocation && <UserDot position={userLocation} />}
 
-        {venues.map((venue) => (
-          <VenueMarker
-            key={venue.id}
-            venue={venue}
-            isSelected={selectedVenue?.id === venue.id}
-            onClick={() => handleMarkerClick(venue)}
-          />
-        ))}
+          {filteredVenues.map((venue) => (
+            <VenueMarker
+              key={venue.id}
+              venue={venue}
+              isSelected={selectedVenue?.id === venue.id}
+              onClick={() => handleMarkerClick(venue)}
+            />
+          ))}
 
-        <MapController center={mapCenter} />
-      </Map>
-
-      {/* ── Search bar overlay ───────────────────────────────────────── */}
-      <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-12">
-        <SearchBar
-          onSelect={handleSearchSelect}
-          userLocation={userLocation ?? NASHVILLE}
-        />
+          <MapController center={mapCenter} />
+        </Map>
       </div>
 
-      {/* ── Location denied banner ───────────────────────────────────── */}
+      {/* ── List view ──────────────────────────────────────────────── */}
+      {view === "list" && (
+        <VenueListView
+          venues={filteredVenues}
+          loading={loading}
+          onOpenDetail={openDetail}
+          topOffset={OVERLAY_TOP_OFFSET}
+        />
+      )}
+
+      {/* ── Top overlays: Search + Toggle + Filters ─────────────────── */}
+      <div className="absolute top-0 left-0 right-0 z-20 px-4 pt-12 space-y-2">
+        {/* Search row */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1">
+            <SearchBar
+              onSelect={handleSearchSelect}
+              userLocation={userLocation ?? NASHVILLE}
+            />
+          </div>
+          <ViewToggleButton
+            view={view}
+            onToggle={() => setView((v) => (v === "map" ? "list" : "map"))}
+          />
+        </div>
+
+        {/* Filter pills */}
+        <FilterBar filters={filters} onChange={setFilters} />
+      </div>
+
+      {/* ── Location denied banner ──────────────────────────────────── */}
       {locationDenied && (
-        <div className="absolute top-[4.5rem] left-4 right-4 z-20 mt-3">
+        <div
+          className="absolute left-4 right-4 z-20 mt-3"
+          style={{ top: OVERLAY_TOP_OFFSET + 8 }}
+        >
           <div className="bg-surface/90 backdrop-blur border border-border rounded-xl px-3 py-2 flex items-center gap-2 shadow">
             <span className="text-xs">📍</span>
             <p className="text-subtext text-xs">
@@ -285,20 +450,32 @@ function MapInner() {
         </div>
       )}
 
-      {/* ── Venue bottom sheet ───────────────────────────────────────── */}
-      <VenueBottomSheet
-        venues={venues}
-        selectedVenue={selectedVenue}
-        onSelect={setSelectedVenue}
-        userLocation={userLocation ?? NASHVILLE}
-        loading={loading}
+      {/* ── Venue bottom sheet (map view only) ─────────────────────── */}
+      {view === "map" && (
+        <VenueBottomSheet
+          venues={filteredVenues}
+          selectedVenue={selectedVenue}
+          onSelect={setSelectedVenue}
+          onOpenDetail={openDetail}
+          userLocation={userLocation ?? NASHVILLE}
+          loading={loading}
+        />
+      )}
+
+      {/* ── Venue detail sheet (both views) ────────────────────────── */}
+      <VenueDetailSheet
+        isOpen={isDetailOpen}
+        onClose={closeDetail}
+        venue={detailVenue}
+        details={venueDetails}
+        loading={detailLoading}
       />
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// DiscoverMap — outer shell: guards missing key, provides APIProvider
+// DiscoverMap — outer shell: guards missing API key, provides APIProvider
 // ---------------------------------------------------------------------------
 export default function DiscoverMap() {
   if (!MAPS_API_KEY) return <MapConfigError />;
@@ -307,7 +484,7 @@ export default function DiscoverMap() {
     <div
       className={`relative h-full w-full${USING_DEMO_MAP_ID ? " pulse-map-dark" : ""}`}
     >
-      {/* Suppress Google's own error overlay — we render our own */}
+      {/* Suppress Google's own error overlay; we render our own */}
       <style>{`.gm-err-container { display: none !important; }`}</style>
 
       <APIProvider apiKey={MAPS_API_KEY}>

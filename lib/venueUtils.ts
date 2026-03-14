@@ -93,6 +93,10 @@ export function parsePlacesResponse(
       const busynessLevel = getBusynessLevel(isOpen, rating, userRatingCount);
       const distance = haversineDistance(userLat, userLng, loc.latitude, loc.longitude);
 
+      const photos = p.photos as
+        | { name: string; widthPx: number; heightPx: number }[]
+        | undefined;
+
       return {
         id: (p.id as string) ?? `unknown-${Math.random()}`,
         name: displayName?.text ?? "Unknown Venue",
@@ -106,6 +110,8 @@ export function parsePlacesResponse(
         isBusy: busynessLevel >= 3,
         busynessLevel,
         distance,
+        types: (p.types as string[]) ?? [],
+        firstPhotoName: photos?.[0]?.name,
       };
     })
     .filter((v): v is Venue => v !== null)

@@ -1,5 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * Fetches full venue details from the Places API (New).
+ * Used when a venue card / marker is tapped to populate VenueDetailSheet.
+ */
+const FIELD_MASK = [
+  "id",
+  "displayName",
+  "formattedAddress",
+  "location",
+  "currentOpeningHours",
+  "regularOpeningHours",
+  "photos",
+  "editorialSummary",
+  "rating",
+  "userRatingCount",
+  "priceLevel",
+  "businessStatus",
+  "websiteUri",
+  "nationalPhoneNumber",
+  "servesBeer",
+  "servesWine",
+  "servesCocktails",
+  "outdoorSeating",
+  "reservable",
+  "types",
+].join(",");
+
 export async function GET(req: NextRequest) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
@@ -21,7 +48,7 @@ export async function GET(req: NextRequest) {
     {
       headers: {
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "id,displayName,formattedAddress,location",
+        "X-Goog-FieldMask": FIELD_MASK,
       },
     }
   );
@@ -35,14 +62,48 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const data = await res.json();
+  const d = await res.json();
 
+  // Map raw Places API (New) shape → VenueDetails
   return NextResponse.json({
-    id: data.id,
-    name: data.displayName?.text ?? null,
-    address: data.formattedAddress ?? null,
-    location: data.location
-      ? { lat: data.location.latitude, lng: data.location.longitude }
+    id: d.id,
+    name: d.displayName?.text ?? null,
+    address: d.formattedAddress ?? null,
+    location: d.location
+      ? { lat: d.location.latitude, lng: d.location.longitude }
+      : null,
+    isOpen: d.currentOpeningHours?.openNow ?? false,
+    rating: d.rating ?? 0,
+    userRatingCount: d.userRatingCount ?? 0,
+    priceLevel: d.priceLevel ?? null,
+    businessStatus: d.businessStatus ?? null,
+    types: d.types ?? [],
+    // Extended fields
+    editorialSummary: d.editorialSummary?.text ?? null,
+    websiteUri: d.websiteUri ?? null,
+    nationalPhoneNumber: d.nationalPhoneNumber ?? null,
+    servesBeer: d.servesBeer ?? null,
+    servesWine: d.servesWine ?? null,
+    servesCocktails: d.servesCocktails ?? null,
+    outdoorSeating: d.outdoorSeating ?? null,
+    reservable: d.reservable ?? null,
+    // Up to 6 photos for the detail sheet carousel
+    photos: (
+      (d.photos ?? []) as { name: string; widthPx: number; heightPx: number }[]
+    )
+      .slice(0, 6)
+      .map((p) => ({ name: p.name, widthPx: p.widthPx, heightPx: p.heightPx })),
+    currentOpeningHours: d.currentOpeningHours
+      ? {
+          openNow: d.currentOpeningHours.openNow ?? false,
+          weekdayDescriptions: d.currentOpeningHours.weekdayDescriptions ?? [],
+        }
+      : null,
+    regularOpeningHours: d.regularOpeningHours
+      ? {
+          openNow: d.regularOpeningHours.openNow ?? false,
+          weekdayDescriptions: d.regularOpeningHours.weekdayDescriptions ?? [],
+        }
       : null,
   });
 }

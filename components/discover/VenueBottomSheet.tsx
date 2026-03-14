@@ -8,6 +8,8 @@ interface VenueBottomSheetProps {
   venues: Venue[];
   selectedVenue: Venue | null;
   onSelect: (venue: Venue | null) => void;
+  /** Called when a card is tapped — opens the detail sheet */
+  onOpenDetail: (venue: Venue) => void;
   userLocation: { lat: number; lng: number };
   loading: boolean;
 }
@@ -18,6 +20,7 @@ export default function VenueBottomSheet({
   venues,
   selectedVenue,
   onSelect,
+  onOpenDetail,
   loading,
 }: VenueBottomSheetProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,7 +67,7 @@ export default function VenueBottomSheet({
           ? Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="shrink-0 w-48 h-[168px] rounded-2xl border border-border bg-surface/80 animate-pulse"
+                className="shrink-0 w-48 h-[196px] rounded-2xl border border-border bg-surface/80 animate-pulse"
               />
             ))
           : venues.map((venue) => (
@@ -72,7 +75,10 @@ export default function VenueBottomSheet({
                 key={venue.id}
                 venue={venue}
                 isSelected={selectedVenue?.id === venue.id}
-                onClick={() => onSelect(venue)}
+                onClick={() => {
+                  onSelect(venue);
+                  onOpenDetail(venue);
+                }}
               />
             ))}
       </div>
