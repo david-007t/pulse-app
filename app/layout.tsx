@@ -32,8 +32,19 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="bg-background text-text">
-        <div className="flex justify-center min-h-screen bg-black">
-          <div className="relative w-full max-w-[430px] min-h-screen bg-background overflow-hidden flex flex-col">
+        <div className="flex justify-center bg-black" style={{ minHeight: "100dvh" }}>
+          {/*
+           * The app shell uses `min-h-dvh` (dynamic viewport height) so it
+           * fills exactly the visible screen area on iOS Safari without being
+           * taller than the visible viewport.  The static `min-h-screen`
+           * (100vh) was causing the container to extend beyond the visible
+           * area in some iOS configurations, which shifted absolute overlays
+           * (card tray, search bar) out of view.
+           */}
+          <div
+            className="relative w-full max-w-[430px] bg-background overflow-hidden flex flex-col"
+            style={{ minHeight: "100dvh" }}
+          >
             {children}
           </div>
         </div>

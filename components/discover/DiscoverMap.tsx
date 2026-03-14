@@ -28,9 +28,11 @@ const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 const MAP_ID = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
 const USING_DEMO_MAP_ID = !process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID;
 
-// Overlay top offset in px — search bar + filter bar combined height
-// pt-12 (48) + SearchBar (~50) + space-y-2 (8) + FilterBar (~44) + pb-1 (4) = 154 → 164 safe
-const OVERLAY_TOP_OFFSET = 164;
+// Overlay top offset in px — search bar + filter bar combined height.
+// Used for list-view top padding and location-denied banner.
+// pt-safe (≥48) + SearchBar (50) + gap (8) + FilterBar (44) = ~150 → bump to 172 for
+// Dynamic Island devices (safe-area-inset-top up to ~59 px on iPhone 14 Pro+).
+const OVERLAY_TOP_OFFSET = 172;
 
 // ---------------------------------------------------------------------------
 // Filter application

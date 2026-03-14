@@ -89,8 +89,22 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-surface border-t border-border z-50">
-      <div className="flex items-center justify-around h-16 px-2 pb-safe">
+    <nav
+      className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] bg-surface border-t border-border z-50"
+      /*
+       * Padding-bottom = safe-area-inset-bottom (home indicator on notched
+       * iPhones). The nav's rendered height is h-16 (64 px) + safe-area
+       * padding, so it may be taller than 64 px on iPhone X+.
+       * The VenueBottomSheet accounts for this via the CSS variable below.
+       */
+      style={{
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        // Expose actual nav height so overlays can position above it correctly
+        // @ts-expect-error custom CSS variable
+        "--nav-height": "calc(64px + env(safe-area-inset-bottom, 0px))",
+      }}
+    >
+      <div className="flex items-center justify-around h-16 px-2">
         {tabs.map((tab) => {
           const active = pathname === tab.href || pathname.startsWith(tab.href + "/");
           return (

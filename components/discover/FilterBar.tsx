@@ -87,9 +87,22 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
   };
 
   return (
+    /*
+     * Same non-flex scroll pattern as VenueBottomSheet:
+     * outer block div owns overflow-x-auto; inner flex row has max-content
+     * width so the outer div gets the correct intrinsic height on iOS Safari.
+     */
     <div
-      className="flex gap-2 overflow-x-auto pb-1"
-      style={{ scrollbarWidth: "none" }}
+      className="overflow-x-auto"
+      style={{
+        scrollbarWidth: "none",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        WebkitOverflowScrolling: "touch" as any,
+      }}
+    >
+    <div
+      className="flex gap-2 pb-1"
+      style={{ width: "max-content" }}
     >
       {PILLS.map((pill) => {
         const active = isActive(pill);
@@ -109,6 +122,7 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
           </button>
         );
       })}
+    </div>
     </div>
   );
 }

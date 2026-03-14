@@ -347,8 +347,9 @@ export default function VenueDetailSheet({
 
       {/* ── Sheet ───────────────────────────────────────────────────── */}
       <div
-        className="absolute bottom-16 left-0 right-0 flex flex-col rounded-t-3xl overflow-hidden shadow-2xl"
+        className="absolute left-0 right-0 flex flex-col rounded-t-3xl overflow-hidden shadow-2xl"
         style={{
+          bottom: "calc(64px + env(safe-area-inset-bottom, 0px))",
           maxHeight: "88vh",
           backgroundColor: "#16162A",
           transform: isVisible
