@@ -32,3 +32,34 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* ── Map marker animations ──────────────────────────────────────────────── */
+@keyframes markerPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+}
+
+.marker-pulse {
+  animation: markerPulse 2s ease-in-out infinite;
+}
+
+@keyframes userDotPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+.user-dot-pulse {
+  animation: userDotPulse 2.4s ease-in-out infinite;
+}
