@@ -11,6 +11,7 @@ import VenueMarker from "./VenueMarker";
 import VenueBottomSheet from "./VenueBottomSheet";
 import SearchBar from "./SearchBar";
 import { parsePlacesResponse } from "@/lib/venueUtils";
+import { AUBERGINE_STYLE } from "@/lib/mapStyles";
 import type { Venue } from "@/types/venue";
 
 const NASHVILLE = { lat: 36.1627, lng: -86.7816 };
@@ -80,8 +81,14 @@ export default function DiscoverMap() {
   const [locationDenied, setLocationDenied] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
 
-  const mapId =
-    process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID";
+  /*
+   * mapId strategy:
+   *   • Undefined (no mapId set) → raster renderer → AUBERGINE_STYLE applies ✓
+   *     AdvancedMarker works without mapId in @vis.gl/react-google-maps v1.7.1
+   *   • Custom mapId from Cloud Console → vector renderer → styles prop ignored;
+   *     apply the aubergine JSON in Cloud Console → Map Styles instead.
+   */
+  const mapId = process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || undefined;
   const mapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? "";
 
   useEffect(() => {
@@ -121,11 +128,17 @@ export default function DiscoverMap() {
           body: JSON.stringify({ lat, lng }),
         });
         const data = await res.json();
+        console.log("[DiscoverMap] /api/places/nearby response:", {
+          status: res.status,
+          placeCount: Array.isArray(data.places) ? data.places.length : 0,
+          error: data.error ?? null,
+        });
         const parsed = parsePlacesResponse(
           data.places ?? [],
           userLocation?.lat ?? lat,
           userLocation?.lng ?? lng
         );
+        console.log(`[DiscoverMap] Parsed ${parsed.length} venue(s) to display`);
         setVenues(parsed);
       } catch (err) {
         console.error("[DiscoverMap] fetchVenues error:", err);
@@ -180,20 +193,17 @@ export default function DiscoverMap() {
       <APIProvider apiKey={mapsApiKey}>
         {/* ── Map ──────────────────────────────────────────────────────── */}
         <Map
+          /*
+           * When mapId is undefined → raster renderer → AUBERGINE_STYLE applied below ✓
+           * When mapId is set (Cloud Console) → vector renderer → configure style there.
+           */
           mapId={mapId}
           defaultCenter={initialCenter}
           defaultZoom={15}
           disableDefaultUI
           gestureHandling="greedy"
           style={{ width: "100%", height: "100%" }}
-          /*
-           * `styles` is respected only when mapId is NOT set or is DEMO_MAP_ID.
-           * For production, configure the aubergine theme via Google Cloud Console
-           * and set NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID in your env.
-           */
-          {...(!process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID && {
-            styles: require("@/lib/mapStyles").AUBERGINE_STYLE,
-          })}
+          styles={AUBERGINE_STYLE}
         >
           {userLocation && <UserDot position={userLocation} />}
 

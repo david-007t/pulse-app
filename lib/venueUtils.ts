@@ -60,10 +60,28 @@ export function parsePlacesResponse(
   userLat: number,
   userLng: number
 ): Venue[] {
+  console.log(`[venueUtils] parsePlacesResponse: received ${places.length} raw places`);
+
   return places
-    .filter((p) => p.businessStatus === "OPERATIONAL")
-    .map((p): Venue => {
-      const loc = p.location as { latitude: number; longitude: number };
+    // Allow places with missing businessStatus (not all fields are always populated).
+    // Only explicitly exclude CLOSED_PERMANENTLY or CLOSED_TEMPORARILY.
+    .filter((p) => {
+      const status = p.businessStatus as string | undefined;
+      const excluded = status === "CLOSED_PERMANENTLY" || status === "CLOSED_TEMPORARILY";
+      if (excluded) {
+        console.log(`[venueUtils] Skipping ${p.id} — businessStatus: ${status}`);
+      }
+      return !excluded;
+    })
+    .map((p): Venue | null => {
+      const loc = p.location as { latitude?: number; longitude?: number } | undefined;
+
+      // location is required — skip if missing
+      if (!loc?.latitude || !loc?.longitude) {
+        console.warn("[venueUtils] Skipping place with no location:", p.id);
+        return null;
+      }
+
       const displayName = p.displayName as { text?: string } | undefined;
       const currentOpeningHours = p.currentOpeningHours as
         | { openNow?: boolean }
@@ -73,15 +91,10 @@ export function parsePlacesResponse(
       const rating = (p.rating as number) ?? 0;
       const userRatingCount = (p.userRatingCount as number) ?? 0;
       const busynessLevel = getBusynessLevel(isOpen, rating, userRatingCount);
-      const distance = haversineDistance(
-        userLat,
-        userLng,
-        loc.latitude,
-        loc.longitude
-      );
+      const distance = haversineDistance(userLat, userLng, loc.latitude, loc.longitude);
 
       return {
-        id: p.id as string,
+        id: (p.id as string) ?? `unknown-${Math.random()}`,
         name: displayName?.text ?? "Unknown Venue",
         address: (p.formattedAddress as string) ?? "",
         location: { lat: loc.latitude, lng: loc.longitude },
@@ -89,11 +102,12 @@ export function parsePlacesResponse(
         rating,
         userRatingCount,
         priceLevel: p.priceLevel as string | undefined,
-        businessStatus: p.businessStatus as string,
+        businessStatus: (p.businessStatus as string) ?? "UNKNOWN",
         isBusy: busynessLevel >= 3,
         busynessLevel,
         distance,
       };
     })
+    .filter((v): v is Venue => v !== null)
     .sort((a, b) => (a.distance ?? 0) - (b.distance ?? 0));
 }
