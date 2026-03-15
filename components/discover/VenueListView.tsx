@@ -5,8 +5,12 @@ import { formatDistance } from "@/lib/venueUtils";
 
 interface VenueListViewProps {
   venues: Venue[];
+  /** Total venues before any limit was applied — used for "Showing X of Y" */
+  totalBeforeLimit?: number;
   loading: boolean;
   onOpenDetail: (venue: Venue) => void;
+  /** Called when the user taps "Show more" — steps limit up to the next tier */
+  onShowMore?: () => void;
   /** px from top to clear the search bar + filter bar overlay */
   topOffset?: number;
 }
@@ -161,15 +165,49 @@ function VenueListItem({
 
 export default function VenueListView({
   venues,
+  totalBeforeLimit,
   loading,
   onOpenDetail,
+  onShowMore,
   topOffset = 164,
 }: VenueListViewProps) {
+  // Show the banner only when a limit is actually cutting results short
+  const isLimited =
+    !loading &&
+    venues.length > 0 &&
+    totalBeforeLimit != null &&
+    totalBeforeLimit > venues.length;
+
+  // Whether stepping up is still possible (null limit = All, no more steps)
+  const canShowMore = isLimited && onShowMore != null;
+
   return (
     <div
       className="absolute inset-0 overflow-y-auto bg-background"
       style={{ paddingTop: topOffset, paddingBottom: 80 }}
     >
+      {/* ── "Showing X of Y" banner ─────────────────────────────────── */}
+      {isLimited && (
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
+          <p className="text-subtext text-xs">
+            Showing{" "}
+            <span className="text-text font-semibold">{venues.length}</span>
+            {" "}of{" "}
+            <span className="text-text font-semibold">{totalBeforeLimit}</span>
+            {" "}venues
+          </p>
+          {canShowMore && (
+            <button
+              onClick={onShowMore}
+              className="text-primary text-xs font-semibold active:opacity-60 transition-opacity"
+            >
+              Show more ›
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ── Venue rows / skeletons / empty state ─────────────────────── */}
       {loading ? (
         Array.from({ length: 6 }).map((_, i) => <SkeletonItem key={i} />)
       ) : venues.length === 0 ? (

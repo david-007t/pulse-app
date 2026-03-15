@@ -359,15 +359,35 @@ function MapInner() {
     [venues, filters]
   );
 
-  // Keep selectedVenue in sync with filtered list
+  // Apply limit on top of filtered results
+  const displayedVenues = useMemo(
+    () =>
+      filters.limit === null
+        ? filteredVenues
+        : filteredVenues.slice(0, filters.limit),
+    [filteredVenues, filters.limit]
+  );
+
+  // Step limit up: 5 → 10 → 20 → All (null)
+  const handleShowMore = useCallback(() => {
+    setFilters((prev) => ({
+      ...prev,
+      limit:
+        prev.limit === 5 ? 10
+        : prev.limit === 10 ? 20
+        : null,
+    }));
+  }, []);
+
+  // Keep selectedVenue in sync with displayed list
   useEffect(() => {
     if (
       selectedVenue &&
-      !filteredVenues.find((v) => v.id === selectedVenue.id)
+      !displayedVenues.find((v) => v.id === selectedVenue.id)
     ) {
       setSelectedVenue(null);
     }
-  }, [filteredVenues, selectedVenue]);
+  }, [displayedVenues, selectedVenue]);
 
   const initialCenter = userLocation ?? NASHVILLE;
 
@@ -394,7 +414,7 @@ function MapInner() {
         >
           {userLocation && <UserDot position={userLocation} />}
 
-          {filteredVenues.map((venue) => (
+          {displayedVenues.map((venue) => (
             <VenueMarker
               key={venue.id}
               venue={venue}
@@ -410,9 +430,11 @@ function MapInner() {
       {/* ── List view ──────────────────────────────────────────────── */}
       {view === "list" && (
         <VenueListView
-          venues={filteredVenues}
+          venues={displayedVenues}
+          totalBeforeLimit={filteredVenues.length}
           loading={loading}
           onOpenDetail={openDetail}
+          onShowMore={handleShowMore}
           topOffset={OVERLAY_TOP_OFFSET}
         />
       )}
@@ -455,7 +477,7 @@ function MapInner() {
       {/* ── Venue bottom sheet (map view only) ─────────────────────── */}
       {view === "map" && (
         <VenueBottomSheet
-          venues={filteredVenues}
+          venues={displayedVenues}
           selectedVenue={selectedVenue}
           onSelect={setSelectedVenue}
           onOpenDetail={openDetail}

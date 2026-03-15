@@ -4,6 +4,7 @@
 
 export type SortFilter = "distance" | "rating" | "busiest";
 export type CategoryFilter = "bars" | "clubs";
+export type LimitFilter = 5 | 10 | 20;
 
 export interface ActiveFilters {
   /** Show only open venues */
@@ -12,12 +13,15 @@ export interface ActiveFilters {
   sort: SortFilter | null;
   /** Category filter — mutually exclusive */
   category: CategoryFilter | null;
+  /** Max venues to display — null = All */
+  limit: LimitFilter | null;
 }
 
 export const DEFAULT_FILTERS: ActiveFilters = {
   open: true,
   sort: null,
   category: null,
+  limit: null,
 };
 
 // ── Pill definitions ─────────────────────────────────────────────────────────
@@ -26,16 +30,26 @@ type PillDef =
   | { id: "open"; label: string; type: "toggle" }
   | { id: SortFilter; label: string; type: "sort" }
   | { id: CategoryFilter; label: string; type: "category" }
-  | { id: "all"; label: string; type: "reset-category" };
+  | { id: "all"; label: string; type: "reset-category" }
+  | { id: LimitFilter; label: string; type: "limit" }
+  | { id: "all-limit"; label: string; type: "reset-limit" };
 
 const PILLS: PillDef[] = [
-  { id: "open", label: "🟢 Open Now", type: "toggle" },
-  { id: "distance", label: "📍 Nearest", type: "sort" },
-  { id: "rating", label: "⭐ Top Rated", type: "sort" },
-  { id: "busiest", label: "🔥 Busiest", type: "sort" },
-  { id: "bars", label: "🍺 Bars", type: "category" },
-  { id: "clubs", label: "🎵 Clubs", type: "category" },
-  { id: "all", label: "🌟 All", type: "reset-category" },
+  { id: "open",     label: "🟢 Open Now",  type: "toggle" },
+  { id: "distance", label: "📍 Nearest",   type: "sort" },
+  { id: "rating",   label: "⭐ Top Rated", type: "sort" },
+  { id: "busiest",  label: "🔥 Busiest",   type: "sort" },
+  { id: "bars",     label: "🍺 Bars",      type: "category" },
+  { id: "clubs",    label: "🎵 Clubs",     type: "category" },
+  { id: "all",      label: "🌟 All",       type: "reset-category" },
+];
+
+// Limit pills rendered as a separate group after a visual divider
+const LIMIT_PILLS: PillDef[] = [
+  { id: 5,           label: "Top 5",  type: "limit" },
+  { id: 10,          label: "Top 10", type: "limit" },
+  { id: 20,          label: "Top 20", type: "limit" },
+  { id: "all-limit", label: "All",    type: "reset-limit" },
 ];
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -70,27 +84,43 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
       case "reset-category":
         onChange({ ...filters, category: null });
         break;
+
+      // Limit pills act as a radio group — tap another to switch, tap "All" to clear
+      case "limit":
+        onChange({ ...filters, limit: pill.id as LimitFilter });
+        break;
+
+      case "reset-limit":
+        onChange({ ...filters, limit: null });
+        break;
     }
   };
 
   const isActive = (pill: PillDef): boolean => {
     switch (pill.type) {
-      case "toggle":
-        return filters.open;
-      case "sort":
-        return filters.sort === pill.id;
-      case "category":
-        return filters.category === pill.id;
-      case "reset-category":
-        return filters.category === null;
+      case "toggle":        return filters.open;
+      case "sort":          return filters.sort === pill.id;
+      case "category":      return filters.category === pill.id;
+      case "reset-category":return filters.category === null;
+      case "limit":         return filters.limit === pill.id;
+      case "reset-limit":   return filters.limit === null;
     }
   };
 
+  const pillClass = (active: boolean) =>
+    [
+      "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold",
+      "border transition-all duration-150 active:scale-95",
+      active
+        ? "bg-primary border-primary text-white shadow-[0_0_12px_rgba(124,58,237,0.4)]"
+        : "bg-surface/90 border-border text-subtext",
+    ].join(" ");
+
   return (
     /*
-     * Same non-flex scroll pattern as VenueBottomSheet:
+     * Non-flex scroll container (same as VenueBottomSheet):
      * outer block div owns overflow-x-auto; inner flex row has max-content
-     * width so the outer div gets the correct intrinsic height on iOS Safari.
+     * width so iOS Safari derives the correct intrinsic block height.
      */
     <div
       className="overflow-x-auto"
@@ -100,29 +130,39 @@ export default function FilterBar({ filters, onChange }: FilterBarProps) {
         WebkitOverflowScrolling: "touch" as any,
       }}
     >
-    <div
-      className="flex gap-2 pb-1"
-      style={{ width: "max-content" }}
-    >
-      {PILLS.map((pill) => {
-        const active = isActive(pill);
-        return (
+      <div
+        className="flex items-center gap-2 pb-1"
+        style={{ width: "max-content" }}
+      >
+        {/* ── Category / sort / toggle pills ──────────────────────── */}
+        {PILLS.map((pill) => (
           <button
             key={pill.id}
             onClick={() => handlePill(pill)}
-            className={[
-              "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold",
-              "border transition-all duration-150 active:scale-95",
-              active
-                ? "bg-primary border-primary text-white shadow-[0_0_12px_rgba(124,58,237,0.4)]"
-                : "bg-surface/90 border-border text-subtext",
-            ].join(" ")}
+            className={pillClass(isActive(pill))}
           >
             {pill.label}
           </button>
-        );
-      })}
-    </div>
+        ))}
+
+        {/* ── Divider ──────────────────────────────────────────────── */}
+        <div
+          className="shrink-0 w-px h-5 mx-1"
+          style={{ backgroundColor: "rgba(255,255,255,0.12)" }}
+          aria-hidden
+        />
+
+        {/* ── Limit pills ──────────────────────────────────────────── */}
+        {LIMIT_PILLS.map((pill) => (
+          <button
+            key={pill.id}
+            onClick={() => handlePill(pill)}
+            className={pillClass(isActive(pill))}
+          >
+            {pill.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
