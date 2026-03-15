@@ -60,18 +60,39 @@ export function parsePlacesResponse(
   userLat: number,
   userLng: number
 ): Venue[] {
-  console.log(`[venueUtils] parsePlacesResponse: received ${places.length} raw places`);
+  console.log(
+    `[venueUtils] parsePlacesResponse: received ${places.length} raw place(s)`
+  );
 
   return places
-    // Allow places with missing businessStatus (not all fields are always populated).
-    // Only explicitly exclude CLOSED_PERMANENTLY or CLOSED_TEMPORARILY.
+    // Only exclude venues that are PERMANENTLY closed — they no longer exist.
+    // CLOSED_TEMPORARILY venues (e.g. under renovation) are kept so users can
+    // see them on the map; they'll appear as "Closed" via isOpen=false.
     .filter((p) => {
       const status = p.businessStatus as string | undefined;
-      const excluded = status === "CLOSED_PERMANENTLY" || status === "CLOSED_TEMPORARILY";
-      if (excluded) {
-        console.log(`[venueUtils] Skipping ${p.id} — businessStatus: ${status}`);
+      const name =
+        (p.displayName as { text?: string } | undefined)?.text ??
+        String(p.id);
+
+      if (status === "CLOSED_PERMANENTLY") {
+        console.log(
+          `[venueUtils] ✗ Excluded "${name}" (${p.id}) — CLOSED_PERMANENTLY`
+        );
+        return false;
       }
-      return !excluded;
+
+      // Log unexpected statuses for visibility without excluding them
+      if (
+        status &&
+        status !== "OPERATIONAL" &&
+        status !== "CLOSED_TEMPORARILY"
+      ) {
+        console.log(
+          `[venueUtils] ⚠ Keeping "${name}" with unusual status: ${status}`
+        );
+      }
+
+      return true;
     })
     .map((p): Venue | null => {
       const loc = p.location as { latitude?: number; longitude?: number } | undefined;
