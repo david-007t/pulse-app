@@ -5,6 +5,38 @@ import type { Venue, VenueDetails, VenuePhoto } from "@/types/venue";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Haversine great-circle distance between two lat/lng points.
+ * Returns distance in miles.
+ */
+function haversineDistanceMi(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 3958.8; // Earth radius in miles
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/**
+ * Formats a distance + travel-time string.
+ * Example: "0.8 mi away · 16 min walk · 2 min drive"
+ */
+function formatDistanceRow(distMi: number): string {
+  const distLabel =
+    distMi < 0.1 ? "< 0.1 mi away" : `${distMi.toFixed(1)} mi away`;
+  const walkMin = Math.max(1, Math.round((distMi / 3) * 60));
+  const driveMin = Math.max(1, Math.round((distMi / 25) * 60));
+  return `${distLabel} · ${walkMin} min walk · ${driveMin} min drive`;
+}
+
 function getPriceLabel(priceLevel?: string | null): string {
   switch (priceLevel) {
     case "PRICE_LEVEL_INEXPENSIVE":
@@ -236,6 +268,8 @@ interface VenueDetailSheetProps {
   venue: Venue | null;
   details: VenueDetails | null;
   loading: boolean;
+  /** User's current GPS position — used to show distance + travel time */
+  userLocation?: { lat: number; lng: number } | null;
 }
 
 export default function VenueDetailSheet({
@@ -244,6 +278,7 @@ export default function VenueDetailSheet({
   venue,
   details,
   loading,
+  userLocation,
 }: VenueDetailSheetProps) {
   // Mount/unmount with animation
   const [isMounted, setIsMounted] = useState(false);
@@ -311,6 +346,19 @@ export default function VenueDetailSheet({
 
   // ── Derived data ──────────────────────────────────────────────────────
   const price = getPriceLabel(details?.priceLevel ?? venue.priceLevel);
+
+  // Distance from user to this venue (updates automatically as userLocation prop changes)
+  const distanceRow =
+    userLocation && venue.location?.lat != null && venue.location?.lng != null
+      ? formatDistanceRow(
+          haversineDistanceMi(
+            userLocation.lat,
+            userLocation.lng,
+            venue.location.lat,
+            venue.location.lng
+          )
+        )
+      : null;
   const todayHours = getTodayHours(
     details?.currentOpeningHours?.weekdayDescriptions ??
       details?.regularOpeningHours?.weekdayDescriptions
@@ -457,6 +505,13 @@ export default function VenueDetailSheet({
                   <span className="text-subtext text-xs">{todayHours}</span>
                 )}
               </div>
+
+              {/* Distance + travel time */}
+              {distanceRow && (
+                <p className="text-xs mt-1.5" style={{ color: "#9CA3AF" }}>
+                  📍 {distanceRow}
+                </p>
+              )}
             </div>
 
             {/* ── Editorial summary ─────────────────────────────────── */}

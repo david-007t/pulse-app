@@ -545,6 +545,7 @@ function MapInner() {
         venue={detailVenue}
         details={venueDetails}
         loading={detailLoading}
+        userLocation={userLocation}
       />
     </>
   );
