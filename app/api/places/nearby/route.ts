@@ -3,14 +3,17 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * POST /api/places/nearby
  *
- * Fetches nearby bars / nightlife venues using Places API (New) searchNearby.
+ * Two-wave search strategy to maximise coverage while prioritising open venues.
  *
- * Strategy to maximise results (Places API caps at 20 per call):
- *  1. Split the 7 venue types into 4 batches and run all 4 API calls in
- *     parallel via Promise.all() — up to 4 × 20 = 80 unique results.
- *  2. Each call also follows nextPageToken for up to MAX_PAGES pages.
- *  3. All results are deduplicated by place ID before returning.
- *  4. Fixed 2 000 m radius — no tiered expansion.
+ * Wave 1 — open venues (4 parallel calls with openNow:true):
+ *   Returns only currently-open places. Up to 4 × 20 = 80 open venues.
+ *
+ * Wave 2 — all venues (4 parallel calls, no openNow filter):
+ *   Returns open + closed. Only places NOT in Wave 1 are added (the closed ones).
+ *
+ * Response is sorted: open venues (rating desc) → closed venues (rating desc).
+ * Each place object includes an isOpenNow boolean field.
+ * Fixed 3 200 m (2 mile) radius — no tiered expansion.
  */
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby";
@@ -40,8 +43,8 @@ const TYPE_BATCHES = [
   ["wine_bar", "brewery"],
 ];
 
-/** Fixed search radius in metres. */
-const SEARCH_RADIUS = 2_000;
+/** Fixed search radius in metres (exactly 2 miles). */
+const SEARCH_RADIUS = 3_200;
 
 /** Maximum pages of pagination to attempt per radius tier. */
 const MAX_PAGES = 3;
@@ -57,6 +60,7 @@ type PlaceRaw = Record<string, unknown>;
 interface NearbySearchRequest {
   includedTypes?: string[];
   maxResultCount?: number;
+  openNow?: boolean;
   locationRestriction?: {
     circle: {
       center: { latitude: number; longitude: number };
@@ -123,11 +127,13 @@ async function fetchBatch(
   apiKey: string,
   lat: number,
   lng: number,
-  types: string[]
+  types: string[],
+  openNow?: boolean
 ): Promise<PlaceRaw[]> {
   const baseRequest: NearbySearchRequest = {
     includedTypes: types,
     maxResultCount: 20,
+    ...(openNow ? { openNow: true } : {}),
     locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
@@ -137,7 +143,8 @@ async function fetchBatch(
   };
 
   console.log(
-    `[places/nearby] → Batch [${types.join(", ")}]: radius=${SEARCH_RADIUS}m, maxResultCount=20`
+    `[places/nearby] → Batch [${types.join(", ")}]` +
+      `${openNow ? " [openNow]" : ""}: radius=${SEARCH_RADIUS}m, maxResultCount=20`
   );
 
   const allPlaces: PlaceRaw[] = [];
@@ -245,25 +252,56 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  console.log(`\n[places/nearby] ▶ Parallel venue search`);
+  console.log(`\n[places/nearby] ▶ Two-wave venue search`);
   console.log(`  Location : (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
-  console.log(`  Radius   : ${SEARCH_RADIUS}m (fixed)`);
-  console.log(`  Batches  : ${TYPE_BATCHES.length} parallel calls, up to 20 results each`);
+  console.log(`  Radius   : ${SEARCH_RADIUS}m (fixed, ~2 miles)`);
+  console.log(`  Batches  : ${TYPE_BATCHES.length} types × 2 waves = ${TYPE_BATCHES.length * 2} parallel calls`);
   console.log(`  Max pages: ${MAX_PAGES} per batch`);
 
-  // Run all 4 type-batch searches in parallel, then merge + deduplicate
-  const batchResults = await Promise.all(
-    TYPE_BATCHES.map((types) => fetchBatch(apiKey, lat, lng, types))
+  // ── Wave 1: open venues only ──────────────────────────────────────────────
+  console.log(`[places/nearby] ── Wave 1: open venues (openNow:true) ──`);
+  const wave1Results = await Promise.all(
+    TYPE_BATCHES.map((types) => fetchBatch(apiKey, lat, lng, types, true))
+  );
+  const wave1Places = deduplicatePlaces(wave1Results.flat());
+  const wave1Ids = new Set(wave1Places.map((p) => p.id as string));
+  console.log(
+    `[places/nearby] Wave 1: ${wave1Results.map((b, i) => `[${TYPE_BATCHES[i].join(",")}]=${b.length}`).join(", ")}`
+  );
+  console.log(`[places/nearby] Wave 1 unique: ${wave1Places.length} open venue(s)`);
+
+  // ── Wave 2: all venues — keep only closed ones not in Wave 1 ─────────────
+  console.log(`[places/nearby] ── Wave 2: all venues (no openNow filter) ──`);
+  const wave2Results = await Promise.all(
+    TYPE_BATCHES.map((types) => fetchBatch(apiKey, lat, lng, types, false))
+  );
+  const wave2All = deduplicatePlaces(wave2Results.flat());
+  const wave2Additions = wave2All.filter((p) => !wave1Ids.has(p.id as string));
+  console.log(
+    `[places/nearby] Wave 2: ${wave2Results.map((b, i) => `[${TYPE_BATCHES[i].join(",")}]=${b.length}`).join(", ")}`
+  );
+  console.log(
+    `[places/nearby] Wave 2: ${wave2All.length} total → ${wave2Additions.length} new (closed) added`
   );
 
-  const finalPlaces = deduplicatePlaces(batchResults.flat());
+  // ── Augment with isOpenNow, sort open→closed each by rating desc ─────────
+  const byRatingDesc = (a: PlaceRaw, b: PlaceRaw): number =>
+    ((b.rating as number) ?? 0) - ((a.rating as number) ?? 0);
 
-  console.log(
-    `[places/nearby] Batches returned: ${batchResults.map((b, i) => `[${TYPE_BATCHES[i].join(",")}]=${b.length}`).join(", ")}`
-  );
-  console.log(
-    `[places/nearby] Combined: ${batchResults.flat().length} total → ${finalPlaces.length} unique after dedup`
-  );
+  const openPlaces = wave1Places
+    .map((p) => ({ ...p, isOpenNow: true }))
+    .sort(byRatingDesc);
+
+  const closedPlaces = wave2Additions
+    .map((p) => ({
+      ...p,
+      isOpenNow:
+        ((p.currentOpeningHours as { openNow?: boolean }) ?? {}).openNow ??
+        false,
+    }))
+    .sort(byRatingDesc);
+
+  const finalPlaces: PlaceRaw[] = [...openPlaces, ...closedPlaces];
 
   // ── Summary ──────────────────────────────────────────────────────────────
   const permClosed = finalPlaces.filter(
@@ -272,17 +310,14 @@ export async function POST(req: NextRequest) {
   const tempClosed = finalPlaces.filter(
     (p) => p.businessStatus === "CLOSED_TEMPORARILY"
   ).length;
-  const openNow = finalPlaces.filter(
-    (p) =>
-      ((p.currentOpeningHours as { openNow?: boolean }) ?? {}).openNow === true
-  ).length;
 
   console.log(`\n[places/nearby] ══ Summary ══`);
   console.log(`  Radius         : ${SEARCH_RADIUS}m`);
-  console.log(`  Unique venues  : ${finalPlaces.length}`);
+  console.log(`  Open venues    : ${openPlaces.length} (Wave 1, sorted by rating)`);
+  console.log(`  Closed venues  : ${closedPlaces.length} (Wave 2 additions, sorted by rating)`);
+  console.log(`  Total          : ${finalPlaces.length}`);
   console.log(`  Perm closed    : ${permClosed} (filtered by client — hidden)`);
   console.log(`  Temp closed    : ${tempClosed} (kept — shown as "Closed")`);
-  console.log(`  Open now       : ${openNow}`);
 
   // ── Full venue roster ─────────────────────────────────────────────────────
   console.log(`\n[places/nearby] ── Venue roster ──`);
