@@ -14,7 +14,7 @@ import { NextRequest, NextResponse } from "next/server";
  *
  * Response is sorted: open venues (rating desc) → closed venues (rating desc).
  * Each place object includes an isOpenNow boolean field.
- * Fixed 3 200 m (2 mile) locationBias radius.
+ * Fixed 3 200 m (2 mile) locationRestriction radius (hard boundary).
  */
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
@@ -40,13 +40,18 @@ const FIELD_MASK = [
  * Text search captures venue categories that structured type searches miss
  * (e.g. venues with "bar" as a secondary type, hotel bars, rooftop lounges).
  */
+/**
+ * Wave 1 uses these queries with openNow:true (API flag, not text).
+ * Wave 2 re-uses the neutral variants below so the text doesn't bias
+ * Google toward currently-open venues when we want closed ones too.
+ */
 const TEXT_QUERIES = [
-  "bars open now near me",
-  "nightclubs open now near me",
-  "cocktail bars open now near me",
-  "pubs and sports bars open now near me",
-  "wine bars and breweries open now near me",
-  "clubs and lounges open now near me",
+  "bars near me",
+  "nightclubs near me",
+  "cocktail bars near me",
+  "pubs and sports bars near me",
+  "wine bars and breweries near me",
+  "clubs near me",
 ];
 
 /** Fixed search radius in metres (exactly 2 miles). */
@@ -67,7 +72,7 @@ interface TextSearchRequest {
   textQuery?: string;
   maxResultCount?: number;
   openNow?: boolean;
-  locationBias?: {
+  locationRestriction?: {
     circle: {
       center: { latitude: number; longitude: number };
       radius: number;
@@ -140,7 +145,7 @@ async function fetchBatch(
     textQuery: query,
     maxResultCount: 20,
     ...(openNow ? { openNow: true } : {}),
-    locationBias: {
+    locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
         radius: SEARCH_RADIUS,
@@ -201,7 +206,7 @@ const VALID_VENUE_TYPES = new Set([
  *  1. Has a display name, formatted address, and location.
  *  2. Address starts with a street number (filters out neighborhoods / areas).
  *  3. Has at least one recognised venue type.
- *  4. Has at least a website URI or a national phone number.
+ *  4. Is NOT permanently closed.
  */
 function isValidVenue(p: PlaceRaw): boolean {
   const name = ((p.displayName as { text?: string }) ?? {}).text;
@@ -219,10 +224,8 @@ function isValidVenue(p: PlaceRaw): boolean {
   const types = (p.types as string[] | undefined) ?? [];
   if (!types.some((t) => VALID_VENUE_TYPES.has(t))) return false;
 
-  // ④ Must have a website URI or a phone number (basic contact-info gate)
-  const website = p.websiteUri as string | undefined;
-  const phone = p.nationalPhoneNumber as string | undefined;
-  if (!website && !phone) return false;
+  // ④ Drop permanently closed venues server-side
+  if ((p.businessStatus as string) === "CLOSED_PERMANENTLY") return false;
 
   return true;
 }
