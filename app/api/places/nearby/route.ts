@@ -73,9 +73,9 @@ interface TextSearchRequest {
   maxResultCount?: number;
   openNow?: boolean;
   locationRestriction?: {
-    circle: {
-      center: { latitude: number; longitude: number };
-      radius: number;
+    rectangle: {
+      low: { latitude: number; longitude: number };
+      high: { latitude: number; longitude: number };
     };
   };
   pageToken?: string;
@@ -146,9 +146,9 @@ async function fetchBatch(
     maxResultCount: 20,
     ...(openNow ? { openNow: true } : {}),
     locationRestriction: {
-      circle: {
-        center: { latitude: lat, longitude: lng },
-        radius: SEARCH_RADIUS,
+      rectangle: {
+        low:  { latitude: lat - 0.029, longitude: lng - 0.036 },
+        high: { latitude: lat + 0.029, longitude: lng + 0.036 },
       },
     },
   };
