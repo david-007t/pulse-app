@@ -15,7 +15,7 @@ export interface ActiveFilters {
 }
 
 export const DEFAULT_FILTERS: ActiveFilters = {
-  open: false,
+  open: true,
   sort: null,
   category: null,
 };

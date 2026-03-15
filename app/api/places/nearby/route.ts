@@ -33,7 +33,7 @@ const FIELD_MASK = [
 /**
  * All nightlife / bar venue types from Places API (New) Table A.
  * Previously only "bar" and "night_club" were used — that missed cocktail
- * bars, pubs, lounges, breweries, etc.
+ * bars, pubs, wine bars, sports bars, and breweries.
  */
 const INCLUDED_TYPES = [
   "bar",
@@ -43,7 +43,6 @@ const INCLUDED_TYPES = [
   "wine_bar",
   "sports_bar",
   "brewery",
-  "lounge",
 ];
 
 /**
