@@ -446,6 +446,7 @@ function MapInner() {
           gestureHandling="greedy"
           style={{ width: "100%", height: "100%" }}
           styles={AUBERGINE_STYLE}
+          clickableIcons={false}
         >
           {userLocation && <UserDot position={userLocation} />}
 

@@ -1,102 +1,53 @@
 /**
- * Google Maps "Aubergine / Night" dark style.
+ * Pulse dark map theme.
+ *
+ * Hides all POI icons, transit icons, and restaurant markers so only
+ * Pulse's own venue markers are visible. Street names and neighborhood
+ * labels are kept; neighborhood labels are styled in Pulse purple.
  *
  * Applied via the Map `styles` prop when no custom Map ID is configured.
  * When NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID is set (recommended for production),
  * apply this style in Google Cloud Console → Maps Platform → Map Styles.
  */
 export const AUBERGINE_STYLE: google.maps.MapTypeStyle[] = [
-  { elementType: "geometry", stylers: [{ color: "#1d2c4d" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#8ec3b9" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#1a3646" }] },
+  { elementType: "geometry",           stylers: [{ color: "#1a1a2e" }] },
+  { elementType: "labels.text.fill",   stylers: [{ color: "#ffffff" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#1a1a2e" }] },
   {
-    featureType: "administrative.country",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#4b6878" }],
-  },
-  {
-    featureType: "administrative.land_parcel",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "administrative.province",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#4b6878" }],
-  },
-  {
-    featureType: "landscape.man_made",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#334e87" }],
-  },
-  {
-    featureType: "landscape.natural",
+    featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#023e58" }],
+    stylers: [{ color: "#2d2d44" }],
   },
+  {
+    featureType: "road",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#9ca3af" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0d1b2a" }],
+  },
+  // Hide all POI icons and labels (restaurants, shops, etc.)
   {
     featureType: "poi",
-    elementType: "geometry",
-    stylers: [{ color: "#283d6a" }],
-  },
-  {
-    featureType: "poi",
-    elementType: "labels.text",
     stylers: [{ visibility: "off" }],
   },
+  // Parks: keep geometry visible but no icons
   {
     featureType: "poi.park",
-    elementType: "geometry.fill",
-    stylers: [{ color: "#023e58" }],
-  },
-  {
-    featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#304a7d" }],
+    stylers: [{ color: "#1a2e1a" }, { visibility: "on" }],
   },
-  {
-    featureType: "road",
-    elementType: "labels",
-    stylers: [{ visibility: "off" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#2c6675" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry.stroke",
-    stylers: [{ color: "#255763" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#b0d5ce" }],
-  },
+  // Hide all transit icons and lines
   {
     featureType: "transit",
-    elementType: "labels",
     stylers: [{ visibility: "off" }],
   },
+  // Neighbourhood labels in Pulse purple
   {
-    featureType: "transit.line",
-    elementType: "geometry.fill",
-    stylers: [{ color: "#283d6a" }],
-  },
-  {
-    featureType: "transit.station",
-    elementType: "geometry",
-    stylers: [{ color: "#3a4762" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#0e1626" }],
-  },
-  {
-    featureType: "water",
+    featureType: "administrative.neighborhood",
     elementType: "labels.text.fill",
-    stylers: [{ color: "#4e6d70" }],
+    stylers: [{ color: "#7C3AED" }],
   },
 ];
