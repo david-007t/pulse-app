@@ -3,20 +3,21 @@ import { NextRequest, NextResponse } from "next/server";
 /**
  * POST /api/places/nearby
  *
- * Two-wave search strategy to maximise coverage while prioritising open venues.
+ * Two-wave searchText strategy for broader venue coverage.
  *
- * Wave 1 — open venues (4 parallel calls with openNow:true):
- *   Returns only currently-open places. Up to 4 × 20 = 80 open venues.
+ * Wave 1 — open venues (6 parallel text searches with openNow:true):
+ *   Natural-language queries capture venues that type-based searches miss.
+ *   Up to 6 × 20 = 120 open venue candidates, deduplicated before use.
  *
- * Wave 2 — all venues (4 parallel calls, no openNow filter):
- *   Returns open + closed. Only places NOT in Wave 1 are added (the closed ones).
+ * Wave 2 — all venues (same 6 queries, no openNow filter):
+ *   Only places NOT already in Wave 1 are appended (the closed ones).
  *
  * Response is sorted: open venues (rating desc) → closed venues (rating desc).
  * Each place object includes an isOpenNow boolean field.
- * Fixed 3 200 m (2 mile) radius — no tiered expansion.
+ * Fixed 3 200 m (2 mile) locationBias radius.
  */
 
-const ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby";
+const ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
 
 const FIELD_MASK = [
   "places.id",
@@ -33,14 +34,17 @@ const FIELD_MASK = [
 ].join(",");
 
 /**
- * Four parallel type batches — each fetches up to 20 results independently,
- * giving up to 80 unique venues after deduplication.
+ * Six natural-language queries run in parallel per wave.
+ * Text search captures venue categories that structured type searches miss
+ * (e.g. venues with "bar" as a secondary type, hotel bars, rooftop lounges).
  */
-const TYPE_BATCHES = [
-  ["bar", "cocktail_bar"],
-  ["night_club"],
-  ["pub", "sports_bar"],
-  ["wine_bar", "brewery"],
+const TEXT_QUERIES = [
+  "bars open now near me",
+  "nightclubs open now near me",
+  "cocktail bars open now near me",
+  "pubs and sports bars open now near me",
+  "wine bars and breweries open now near me",
+  "clubs and lounges open now near me",
 ];
 
 /** Fixed search radius in metres (exactly 2 miles). */
@@ -57,11 +61,11 @@ const DEBUG_VENUE_ADDR = "402 15th St";
 
 type PlaceRaw = Record<string, unknown>;
 
-interface NearbySearchRequest {
-  includedTypes?: string[];
+interface TextSearchRequest {
+  textQuery?: string;
   maxResultCount?: number;
   openNow?: boolean;
-  locationRestriction?: {
+  locationBias?: {
     circle: {
       center: { latitude: number; longitude: number };
       radius: number;
@@ -79,7 +83,7 @@ interface NearbySearchResponse {
 
 async function fetchOnePage(
   apiKey: string,
-  body: NearbySearchRequest
+  body: TextSearchRequest
 ): Promise<{ places: PlaceRaw[]; nextPageToken?: string }> {
   const res = await fetch(ENDPOINT, {
     method: "POST",
@@ -122,19 +126,19 @@ async function fetchOnePage(
   return { places, nextPageToken: data.nextPageToken };
 }
 
-/** Fetch up to MAX_PAGES pages of results for one type batch. */
+/** Fetch up to MAX_PAGES pages of results for one text query. */
 async function fetchBatch(
   apiKey: string,
   lat: number,
   lng: number,
-  types: string[],
+  query: string,
   openNow?: boolean
 ): Promise<PlaceRaw[]> {
-  const baseRequest: NearbySearchRequest = {
-    includedTypes: types,
+  const baseRequest: TextSearchRequest = {
+    textQuery: query,
     maxResultCount: 20,
     ...(openNow ? { openNow: true } : {}),
-    locationRestriction: {
+    locationBias: {
       circle: {
         center: { latitude: lat, longitude: lng },
         radius: SEARCH_RADIUS,
@@ -143,7 +147,7 @@ async function fetchBatch(
   };
 
   console.log(
-    `[places/nearby] → Batch [${types.join(", ")}]` +
+    `[places/nearby] → "${query}"` +
       `${openNow ? " [openNow]" : ""}: radius=${SEARCH_RADIUS}m, maxResultCount=20`
   );
 
@@ -156,7 +160,7 @@ async function fetchBatch(
 
     // For pagination: subsequent requests only need the pageToken.
     // The Places API (New) re-uses the original search params server-side.
-    const requestBody: NearbySearchRequest =
+    const requestBody: TextSearchRequest =
       page === 1 ? baseRequest : { pageToken };
 
     const { places, nextPageToken } = await fetchOnePage(apiKey, requestBody);
@@ -168,7 +172,7 @@ async function fetchBatch(
   }
 
   console.log(
-    `[places/nearby] ↳ Batch [${types.join(", ")}] total: ${allPlaces.length}`
+    `[places/nearby] ↳ "${query}" total: ${allPlaces.length}`
   );
   return allPlaces;
 }
@@ -252,33 +256,33 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  console.log(`\n[places/nearby] ▶ Two-wave venue search`);
+  console.log(`\n[places/nearby] ▶ Two-wave text search`);
   console.log(`  Location : (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
   console.log(`  Radius   : ${SEARCH_RADIUS}m (fixed, ~2 miles)`);
-  console.log(`  Batches  : ${TYPE_BATCHES.length} types × 2 waves = ${TYPE_BATCHES.length * 2} parallel calls`);
-  console.log(`  Max pages: ${MAX_PAGES} per batch`);
+  console.log(`  Queries  : ${TEXT_QUERIES.length} × 2 waves = ${TEXT_QUERIES.length * 2} parallel calls`);
+  console.log(`  Max pages: ${MAX_PAGES} per query`);
 
   // ── Wave 1: open venues only ──────────────────────────────────────────────
   console.log(`[places/nearby] ── Wave 1: open venues (openNow:true) ──`);
   const wave1Results = await Promise.all(
-    TYPE_BATCHES.map((types) => fetchBatch(apiKey, lat, lng, types, true))
+    TEXT_QUERIES.map((query) => fetchBatch(apiKey, lat, lng, query, true))
   );
   const wave1Places = deduplicatePlaces(wave1Results.flat());
   const wave1Ids = new Set(wave1Places.map((p) => p.id as string));
   console.log(
-    `[places/nearby] Wave 1: ${wave1Results.map((b, i) => `[${TYPE_BATCHES[i].join(",")}]=${b.length}`).join(", ")}`
+    `[places/nearby] Wave 1: ${wave1Results.map((b, i) => `"${TEXT_QUERIES[i].split(" ")[0]}"=${b.length}`).join(", ")}`
   );
   console.log(`[places/nearby] Wave 1 unique: ${wave1Places.length} open venue(s)`);
 
   // ── Wave 2: all venues — keep only closed ones not in Wave 1 ─────────────
   console.log(`[places/nearby] ── Wave 2: all venues (no openNow filter) ──`);
   const wave2Results = await Promise.all(
-    TYPE_BATCHES.map((types) => fetchBatch(apiKey, lat, lng, types, false))
+    TEXT_QUERIES.map((query) => fetchBatch(apiKey, lat, lng, query, false))
   );
   const wave2All = deduplicatePlaces(wave2Results.flat());
   const wave2Additions = wave2All.filter((p) => !wave1Ids.has(p.id as string));
   console.log(
-    `[places/nearby] Wave 2: ${wave2Results.map((b, i) => `[${TYPE_BATCHES[i].join(",")}]=${b.length}`).join(", ")}`
+    `[places/nearby] Wave 2: ${wave2Results.map((b, i) => `"${TEXT_QUERIES[i].split(" ")[0]}"=${b.length}`).join(", ")}`
   );
   console.log(
     `[places/nearby] Wave 2: ${wave2All.length} total → ${wave2Additions.length} new (closed) added`
