@@ -447,6 +447,7 @@ function MapInner() {
           style={{ width: "100%", height: "100%" }}
           styles={AUBERGINE_STYLE}
           clickableIcons={false}
+          colorScheme="DARK"
         >
           {userLocation && <UserDot position={userLocation} />}
 
