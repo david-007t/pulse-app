@@ -5,13 +5,12 @@ import { NextRequest, NextResponse } from "next/server";
  *
  * Fetches nearby bars / nightlife venues using Places API (New) searchNearby.
  *
- * Strategy to maximise results:
- *  1. Search with ALL 8 venue types in a single request (maxResultCount=20).
- *  2. If the response contains a nextPageToken, fetch up to 2 more pages
- *     (total cap: 3 pages × 20 = 60 results).
- *  3. If accumulated results < MIN_RESULTS_THRESHOLD, expand the search
- *     radius and repeat (1 000 m → 2 000 m → 5 000 m).
- *  4. Deduplicate across all pages/radii by place ID before returning.
+ * Strategy to maximise results (Places API caps at 20 per call):
+ *  1. Split the 7 venue types into 4 batches and run all 4 API calls in
+ *     parallel via Promise.all() — up to 4 × 20 = 80 unique results.
+ *  2. Each call also follows nextPageToken for up to MAX_PAGES pages.
+ *  3. All results are deduplicated by place ID before returning.
+ *  4. Fixed 2 000 m radius — no tiered expansion.
  */
 
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby";
@@ -31,29 +30,18 @@ const FIELD_MASK = [
 ].join(",");
 
 /**
- * All nightlife / bar venue types from Places API (New) Table A.
- * Previously only "bar" and "night_club" were used — that missed cocktail
- * bars, pubs, wine bars, sports bars, and breweries.
+ * Four parallel type batches — each fetches up to 20 results independently,
+ * giving up to 80 unique venues after deduplication.
  */
-const INCLUDED_TYPES = [
-  "bar",
-  "night_club",
-  "pub",
-  "cocktail_bar",
-  "wine_bar",
-  "sports_bar",
-  "brewery",
+const TYPE_BATCHES = [
+  ["bar", "cocktail_bar"],
+  ["night_club"],
+  ["pub", "sports_bar"],
+  ["wine_bar", "brewery"],
 ];
 
-/**
- * Tiered radii in metres.
- * Start tight (1 km) and expand only when results are sparse, so city-centre
- * users aren't drowned in distant venues.
- */
-const SEARCH_RADII = [1_000, 2_000, 5_000];
-
-/** Minimum venues before we accept a radius tier and stop expanding. */
-const MIN_RESULTS_THRESHOLD = 10;
+/** Fixed search radius in metres. */
+const SEARCH_RADIUS = 2_000;
 
 /** Maximum pages of pagination to attempt per radius tier. */
 const MAX_PAGES = 3;
@@ -130,29 +118,26 @@ async function fetchOnePage(
   return { places, nextPageToken: data.nextPageToken };
 }
 
-/** Fetch up to MAX_PAGES pages of results for a given radius. */
-async function fetchAllPagesForRadius(
+/** Fetch up to MAX_PAGES pages of results for one type batch. */
+async function fetchBatch(
   apiKey: string,
   lat: number,
   lng: number,
-  radius: number
+  types: string[]
 ): Promise<PlaceRaw[]> {
-  console.log(`[places/nearby] ── Radius ${radius}m ──`);
-
   const baseRequest: NearbySearchRequest = {
-    includedTypes: INCLUDED_TYPES,
+    includedTypes: types,
     maxResultCount: 20,
     locationRestriction: {
       circle: {
         center: { latitude: lat, longitude: lng },
-        radius,
+        radius: SEARCH_RADIUS,
       },
     },
   };
 
   console.log(
-    `[places/nearby] → Request: radius=${radius}m, ` +
-      `types=[${INCLUDED_TYPES.join(", ")}], maxResultCount=20`
+    `[places/nearby] → Batch [${types.join(", ")}]: radius=${SEARCH_RADIUS}m, maxResultCount=20`
   );
 
   const allPlaces: PlaceRaw[] = [];
@@ -176,7 +161,7 @@ async function fetchAllPagesForRadius(
   }
 
   console.log(
-    `[places/nearby] Radius ${radius}m total (pre-dedup): ${allPlaces.length}`
+    `[places/nearby] ↳ Batch [${types.join(", ")}] total: ${allPlaces.length}`
   );
   return allPlaces;
 }
@@ -260,46 +245,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  console.log(`\n[places/nearby] ▶ Tiered venue search`);
+  console.log(`\n[places/nearby] ▶ Parallel venue search`);
   console.log(`  Location : (${lat.toFixed(5)}, ${lng.toFixed(5)})`);
-  console.log(`  Types    : [${INCLUDED_TYPES.join(", ")}]`);
-  console.log(
-    `  Radii    : ${SEARCH_RADII.join("m → ")}m` +
-      ` (stop when ≥${MIN_RESULTS_THRESHOLD} results)`
+  console.log(`  Radius   : ${SEARCH_RADIUS}m (fixed)`);
+  console.log(`  Batches  : ${TYPE_BATCHES.length} parallel calls, up to 20 results each`);
+  console.log(`  Max pages: ${MAX_PAGES} per batch`);
+
+  // Run all 4 type-batch searches in parallel, then merge + deduplicate
+  const batchResults = await Promise.all(
+    TYPE_BATCHES.map((types) => fetchBatch(apiKey, lat, lng, types))
   );
-  console.log(`  Max pages: ${MAX_PAGES} per radius tier`);
 
-  let finalPlaces: PlaceRaw[] = [];
-  let usedRadius = 0;
+  const finalPlaces = deduplicatePlaces(batchResults.flat());
 
-  for (const radius of SEARCH_RADII) {
-    const raw = await fetchAllPagesForRadius(apiKey, lat, lng, radius);
-    const deduped = deduplicatePlaces(raw);
-    usedRadius = radius;
-
-    console.log(
-      `[places/nearby] Radius ${radius}m → ${deduped.length} unique venue(s)`
-    );
-
-    // Always keep the largest result set seen so far
-    if (deduped.length > finalPlaces.length) {
-      finalPlaces = deduped;
-    }
-
-    if (deduped.length >= MIN_RESULTS_THRESHOLD) {
-      console.log(
-        `[places/nearby] ✓ Threshold met at ${radius}m — stopping expansion`
-      );
-      break;
-    }
-
-    if (radius !== SEARCH_RADII[SEARCH_RADII.length - 1]) {
-      console.log(
-        `[places/nearby] Only ${deduped.length} venues at ${radius}m — ` +
-          `expanding radius...`
-      );
-    }
-  }
+  console.log(
+    `[places/nearby] Batches returned: ${batchResults.map((b, i) => `[${TYPE_BATCHES[i].join(",")}]=${b.length}`).join(", ")}`
+  );
+  console.log(
+    `[places/nearby] Combined: ${batchResults.flat().length} total → ${finalPlaces.length} unique after dedup`
+  );
 
   // ── Summary ──────────────────────────────────────────────────────────────
   const permClosed = finalPlaces.filter(
@@ -314,7 +278,7 @@ export async function POST(req: NextRequest) {
   ).length;
 
   console.log(`\n[places/nearby] ══ Summary ══`);
-  console.log(`  Final radius   : ${usedRadius}m`);
+  console.log(`  Radius         : ${SEARCH_RADIUS}m`);
   console.log(`  Unique venues  : ${finalPlaces.length}`);
   console.log(`  Perm closed    : ${permClosed} (filtered by client — hidden)`);
   console.log(`  Temp closed    : ${tempClosed} (kept — shown as "Closed")`);
