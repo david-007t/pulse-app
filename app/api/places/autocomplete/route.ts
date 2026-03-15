@@ -1,5 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * POST /api/places/autocomplete
+ *
+ * Wraps the Places API (New) Autocomplete endpoint.
+ * Only returns suggestions for recognised drinking/nightlife venue types,
+ * and filters out any suggestion whose address (secondaryText) does not
+ * begin with a street number — which removes neighbourhood / city suggestions.
+ */
+
+/** Types that signal an actual physical drinking/nightlife venue. */
+const AUTOCOMPLETE_TYPES = [
+  "bar",
+  "night_club",
+  "cocktail_bar",
+  "wine_bar",
+  "sports_bar",
+  "brewery",
+  "pub",
+];
+
+/**
+ * Returns true when the secondary text of an autocomplete prediction looks
+ * like a street address (i.e. starts with a digit such as "402 15th St …").
+ * Pure city / neighbourhood predictions ("Oakland, CA, USA") do not pass.
+ */
+function hasStreetAddress(secondaryText: string): boolean {
+  return /^\d/.test(secondaryText.trim());
+}
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
@@ -25,9 +54,8 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         input,
-        // Bias results toward bars/clubs but also allow general locations
-        // so users can search a neighborhood name
-        includedPrimaryTypes: ["bar", "night_club", "establishment"],
+        // Only match actual venue types — no generic "establishment" or areas.
+        includedPrimaryTypes: AUTOCOMPLETE_TYPES,
         locationBias:
           lat && lng
             ? {
@@ -51,5 +79,26 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await res.json();
-  return NextResponse.json(data);
+
+  // ── Filter out neighbourhood / city predictions ───────────────────────────
+  // A valid venue suggestion has a structured-format secondary text that looks
+  // like a street address ("402 15th St, Oakland, CA, USA").  Broad area
+  // suggestions ("Oakland, CA, USA") are discarded.
+  const suggestions: unknown[] = data.suggestions ?? [];
+  const filtered = suggestions.filter((s) => {
+    const pp = (s as Record<string, unknown>).placePrediction as
+      | Record<string, unknown>
+      | undefined;
+    const sf = pp?.structuredFormat as
+      | Record<string, { text?: string }>
+      | undefined;
+    const secondary = sf?.secondaryText?.text ?? "";
+    return hasStreetAddress(secondary);
+  });
+
+  console.log(
+    `[places/autocomplete] "${input}": ${suggestions.length} raw → ${filtered.length} after address filter`
+  );
+
+  return NextResponse.json({ ...data, suggestions: filtered });
 }

@@ -31,6 +31,8 @@ const FIELD_MASK = [
   "places.priceLevel",
   "places.types",
   "places.photos",
+  "places.websiteUri",
+  "places.nationalPhoneNumber",
 ].join(",");
 
 /**
@@ -177,6 +179,54 @@ async function fetchBatch(
   return allPlaces;
 }
 
+/**
+ * Place types that represent actual nightlife / drinking venues.
+ * Any result that does NOT include at least one of these is discarded.
+ */
+const VALID_VENUE_TYPES = new Set([
+  "bar",
+  "night_club",
+  "cocktail_bar",
+  "wine_bar",
+  "sports_bar",
+  "brewery",
+  "pub",
+  "brewpub",
+  "beer_garden",
+  "live_music_venue",
+]);
+
+/**
+ * Returns true only if the place passes all quality gates:
+ *  1. Has a display name, formatted address, and location.
+ *  2. Address starts with a street number (filters out neighborhoods / areas).
+ *  3. Has at least one recognised venue type.
+ *  4. Has at least a website URI or a national phone number.
+ */
+function isValidVenue(p: PlaceRaw): boolean {
+  const name = ((p.displayName as { text?: string }) ?? {}).text;
+  const addr = p.formattedAddress as string | undefined;
+  const loc = p.location;
+
+  // ① Required fields
+  if (!name || !addr || !loc) return false;
+
+  // ② Address must begin with a digit (e.g. "402 15th St …")
+  //    Neighborhoods / districts usually start with a letter.
+  if (!/^\d/.test(addr.trim())) return false;
+
+  // ③ Must include at least one recognised venue type
+  const types = (p.types as string[] | undefined) ?? [];
+  if (!types.some((t) => VALID_VENUE_TYPES.has(t))) return false;
+
+  // ④ Must have a website URI or a phone number (basic contact-info gate)
+  const website = p.websiteUri as string | undefined;
+  const phone = p.nationalPhoneNumber as string | undefined;
+  if (!website && !phone) return false;
+
+  return true;
+}
+
 /** Deduplicate by place ID, keeping first occurrence. */
 function deduplicatePlaces(places: PlaceRaw[]): PlaceRaw[] {
   const seen = new Set<string>();
@@ -288,15 +338,24 @@ export async function POST(req: NextRequest) {
     `[places/nearby] Wave 2: ${wave2All.length} total → ${wave2Additions.length} new (closed) added`
   );
 
+  // ── Strict venue validation ───────────────────────────────────────────────
+  const validOpenPlaces = wave1Places.filter(isValidVenue);
+  const validClosedPlaces = wave2Additions.filter(isValidVenue);
+
+  console.log(
+    `[places/nearby] Validation: open ${wave1Places.length}→${validOpenPlaces.length} kept` +
+      ` | closed ${wave2Additions.length}→${validClosedPlaces.length} kept`
+  );
+
   // ── Augment with isOpenNow, sort open→closed each by rating desc ─────────
   const byRatingDesc = (a: PlaceRaw, b: PlaceRaw): number =>
     ((b.rating as number) ?? 0) - ((a.rating as number) ?? 0);
 
-  const openPlaces = wave1Places
+  const openPlaces = validOpenPlaces
     .map((p) => ({ ...p, isOpenNow: true }))
     .sort(byRatingDesc);
 
-  const closedPlaces = wave2Additions
+  const closedPlaces = validClosedPlaces
     .map((p) => ({
       ...p,
       isOpenNow:
