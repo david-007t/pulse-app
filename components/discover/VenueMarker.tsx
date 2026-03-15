@@ -7,6 +7,8 @@ interface VenueMarkerProps {
   venue: Venue;
   isSelected: boolean;
   onClick: () => void;
+  /** When true the marker is a search result: always pink, larger, always pulsing */
+  isSearchResult?: boolean;
 }
 
 // White cocktail-glass SVG icon (martini silhouette)
@@ -31,9 +33,12 @@ export default function VenueMarker({
   venue,
   isSelected,
   onClick,
+  isSearchResult = false,
 }: VenueMarkerProps) {
-  const color = venue.isBusy ? "#EC4899" : "#7C3AED";
-  const size = isSelected ? 38 : 30;
+  // Search-result markers are always pink; busy venues are pink; otherwise purple
+  const color = isSearchResult || venue.isBusy ? "#EC4899" : "#7C3AED";
+  // Search-result markers are the largest; selected markers slightly enlarged
+  const size = isSearchResult ? 44 : isSelected ? 38 : 30;
 
   return (
     <AdvancedMarker
@@ -49,8 +54,8 @@ export default function VenueMarker({
           justifyContent: "center",
         }}
       >
-        {/* Pulsing pink glow ring — busy venues only */}
-        {venue.isBusy && (
+        {/* Pulsing pink glow ring — busy venues and search-result markers */}
+        {(venue.isBusy || isSearchResult) && (
           <span
             className="marker-pulse"
             style={{
@@ -64,8 +69,8 @@ export default function VenueMarker({
           />
         )}
 
-        {/* Selection ring */}
-        {isSelected && (
+        {/* Selection ring — shown when selected or when this is a search result */}
+        {(isSelected || isSearchResult) && (
           <span
             style={{
               position: "absolute",

@@ -9,11 +9,13 @@ interface Prediction {
 }
 
 interface SearchBarProps {
-  onSelect: (lat: number, lng: number, label: string) => void;
+  onSelect: (lat: number, lng: number, label: string, placeId: string) => void;
+  /** Called when the user taps the ✕ button to clear the search query */
+  onClear?: () => void;
   userLocation: { lat: number; lng: number };
 }
 
-export default function SearchBar({ onSelect, userLocation }: SearchBarProps) {
+export default function SearchBar({ onSelect, onClear, userLocation }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -81,7 +83,7 @@ export default function SearchBar({ onSelect, userLocation }: SearchBarProps) {
       );
       const data = await res.json();
       if (data.location?.lat != null && data.location?.lng != null) {
-        onSelect(data.location.lat, data.location.lng, pred.mainText);
+        onSelect(data.location.lat, data.location.lng, pred.mainText, pred.placeId);
       }
     } catch (err) {
       console.error("[SearchBar] place details error:", err);
@@ -92,6 +94,7 @@ export default function SearchBar({ onSelect, userLocation }: SearchBarProps) {
     setQuery("");
     setPredictions([]);
     setIsOpen(false);
+    onClear?.();
   };
 
   return (

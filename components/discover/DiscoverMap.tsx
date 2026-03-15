@@ -258,6 +258,11 @@ function MapInner() {
   const [venueDetails, setVenueDetails] = useState<VenueDetails | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // ── Search-result state ─────────────────────────────────────────────────
+  // Tracks the venue selected from the search autocomplete. Rendered as a
+  // distinct pink marker even if it isn't in the current nearby results.
+  const [searchedVenue, setSearchedVenue] = useState<Venue | null>(null);
+
   // ── Geolocation ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -340,9 +345,39 @@ function MapInner() {
   }, []);
 
   // ── Search selection ────────────────────────────────────────────────────
-  const handleSearchSelect = useCallback((lat: number, lng: number) => {
-    setMapCenter({ lat, lng });
-  }, []);
+  const handleSearchSelect = useCallback(
+    (lat: number, lng: number, label: string, placeId: string) => {
+      // Re-centre map and refresh nearby venues for the searched area
+      setMapCenter({ lat, lng });
+
+      // Build a minimal Venue so we can open the detail sheet immediately.
+      // openDetail fetches the full VenueDetails (hours, photos, etc.) by ID.
+      // The searched venue is shown regardless of Open Now filter or distance.
+      const placeholder: Venue = {
+        id: placeId,
+        name: label,
+        address: "",
+        location: { lat, lng },
+        isOpen: false,
+        rating: 0,
+        userRatingCount: 0,
+        businessStatus: "OPERATIONAL",
+        isBusy: false,
+        busynessLevel: 0,
+        types: [],
+      };
+
+      setSearchedVenue(placeholder);
+      openDetail(placeholder);
+    },
+    [openDetail]
+  );
+
+  // ── Search clear ────────────────────────────────────────────────────────
+  const handleSearchClear = useCallback(() => {
+    setSearchedVenue(null);
+    closeDetail();
+  }, [closeDetail]);
 
   // ── Marker click ────────────────────────────────────────────────────────
   const handleMarkerClick = useCallback(
@@ -414,14 +449,28 @@ function MapInner() {
         >
           {userLocation && <UserDot position={userLocation} />}
 
-          {displayedVenues.map((venue) => (
+          {/* Regular venue markers — skip the searched venue (rendered below) */}
+          {displayedVenues
+            .filter((v) => v.id !== searchedVenue?.id)
+            .map((venue) => (
+              <VenueMarker
+                key={venue.id}
+                venue={venue}
+                isSelected={selectedVenue?.id === venue.id}
+                onClick={() => handleMarkerClick(venue)}
+              />
+            ))}
+
+          {/* Search-result marker — always pink + large, unaffected by filters */}
+          {searchedVenue && (
             <VenueMarker
-              key={venue.id}
-              venue={venue}
-              isSelected={selectedVenue?.id === venue.id}
-              onClick={() => handleMarkerClick(venue)}
+              key={`search-${searchedVenue.id}`}
+              venue={searchedVenue}
+              isSelected
+              isSearchResult
+              onClick={() => openDetail(searchedVenue)}
             />
-          ))}
+          )}
 
           <MapController center={mapCenter} />
         </Map>
@@ -446,6 +495,7 @@ function MapInner() {
           <div className="flex-1">
             <SearchBar
               onSelect={handleSearchSelect}
+              onClear={handleSearchClear}
               userLocation={userLocation ?? NASHVILLE}
             />
           </div>
