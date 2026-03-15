@@ -33,6 +33,7 @@ const FIELD_MASK = [
   "places.photos",
   "places.websiteUri",
   "places.nationalPhoneNumber",
+  "places.primaryType",
 ].join(",");
 
 /**
@@ -185,6 +186,26 @@ async function fetchBatch(
 }
 
 /**
+ * Valid primaryType values for nightlife / drinking venues.
+ * If a place has a primaryType AND it isn't in this set, it is discarded.
+ * If primaryType is absent we fall back to the types-array check (gate ③).
+ */
+const VALID_PRIMARY_TYPES = new Set([
+  "bar",
+  "night_club",
+  "cocktail_bar",
+  "wine_bar",
+  "sports_bar",
+  "brewery",
+  "pub",
+  "brewpub",
+  "beer_garden",
+  "live_music_venue",
+  "lounge_bar",
+  "bar_and_grill",
+]);
+
+/**
  * Place types that represent actual nightlife / drinking venues.
  * Any result that does NOT include at least one of these is discarded.
  */
@@ -223,6 +244,12 @@ function isValidVenue(p: PlaceRaw): boolean {
   // ③ Must include at least one recognised venue type
   const types = (p.types as string[] | undefined) ?? [];
   if (!types.some((t) => VALID_VENUE_TYPES.has(t))) return false;
+
+  // ⑤ If primaryType exists, it must be a valid venue type
+  const primaryType = p.primaryType as string | undefined;
+  if (primaryType && !VALID_PRIMARY_TYPES.has(primaryType)) {
+    return false;
+  }
 
   // ④ Drop permanently closed venues server-side
   if ((p.businessStatus as string) === "CLOSED_PERMANENTLY") return false;
