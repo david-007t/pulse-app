@@ -119,8 +119,12 @@ function UserDot({ position }: { position: { lat: number; lng: number } }) {
 function MapConfigError() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 px-8">
-      <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center text-2xl">
-        🗺️
+      <div className="w-14 h-14 rounded-2xl bg-primary/20 flex items-center justify-center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+          <line x1="9" y1="3" x2="9" y2="18" />
+          <line x1="15" y1="6" x2="15" y2="21" />
+        </svg>
       </div>
       <p className="text-text font-semibold text-center">Map not configured</p>
       <p className="text-subtext text-sm text-center leading-relaxed">
@@ -155,8 +159,12 @@ function MapLoadingState() {
 function MapErrorState() {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-4 px-8">
-      <div className="w-14 h-14 rounded-2xl bg-accent/20 flex items-center justify-center text-2xl">
-        ⚠️
+      <div className="w-14 h-14 rounded-2xl bg-accent/20 flex items-center justify-center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#EC4899" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" />
+          <line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
       </div>
       <p className="text-text font-semibold text-center">
         Couldn&apos;t load the map
