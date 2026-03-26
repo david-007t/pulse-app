@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --background: #0D0D1A;
+  --background: #0A0A0F;
   --foreground: #FFFFFF;
 }
 
@@ -24,7 +24,7 @@ body {
   height: 100%;
   min-height: 100dvh;
   overflow: hidden;
-  background-color: #0D0D1A;
+  background-color: #0A0A0F;
   color: #FFFFFF;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -80,6 +80,67 @@ body {
 .animate-spin {
   animation: spin 1s linear infinite;
 }
+
+/* ── Auth / Onboarding blob animations ─────────────────────────────────── */
+@keyframes blobFloat1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, -20px) scale(1.1); }
+  66% { transform: translate(-20px, 20px) scale(0.95); }
+}
+@keyframes blobFloat2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-25px, 15px) scale(1.05); }
+  66% { transform: translate(15px, -25px) scale(1.1); }
+}
+@keyframes blobFloat3 {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.2); }
+}
+.blob-float-1 { animation: blobFloat1 8s ease-in-out infinite; }
+.blob-float-2 { animation: blobFloat2 10s ease-in-out infinite; }
+.blob-float-3 { animation: blobFloat3 12s ease-in-out infinite; }
+
+/* ── Onboarding ring pulse ─────────────────────────────────────────────── */
+@keyframes ringPulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+.ring-pulse { animation: ringPulse 3s ease-in-out infinite; }
+
+/* ── Onboarding celebration rings ──────────────────────────────────────── */
+@keyframes celebRing1 {
+  0% { transform: scale(1); opacity: 0.4; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+@keyframes celebRing2 {
+  0% { transform: scale(1); opacity: 0.3; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@keyframes celebRing3 {
+  0% { transform: scale(1); opacity: 0.2; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.celeb-ring-1 { animation: celebRing1 2s ease-out infinite; }
+.celeb-ring-2 { animation: celebRing2 2s ease-out infinite 0.3s; }
+.celeb-ring-3 { animation: celebRing3 2s ease-out infinite 0.6s; }
+
+/* ── Onboarding confetti dots ───────────────────────────────────────────── */
+@keyframes confettiDot {
+  0% { opacity: 1; transform: rotate(var(--r, 0deg)) translateY(-30px) scale(1); }
+  100% { opacity: 0; transform: rotate(var(--r, 0deg)) translateY(-70px) scale(0.3); }
+}
+
+/* ── Bottom sheet animations ────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { transform: translateX(-50%) translateY(100%); }
+  to { transform: translateX(-50%) translateY(0); }
+}
+.anim-fade-in { animation: fadeIn 200ms ease-out; }
+.anim-slide-up { animation: slideUp 300ms ease-out; }
 
 /* ── Dark map override for DEMO_MAP_ID (vector renderer) ────────────────── */
 /*
