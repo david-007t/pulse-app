@@ -30,6 +30,7 @@ export default function OnboardingPage() {
   const [phone, setPhone] = useState('')
   const [location, setLocation] = useState('')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -54,28 +55,38 @@ export default function OnboardingPage() {
   function handleUsernameChange(value: string) {
     const cleaned = value.toLowerCase().replace(/[^a-z0-9_]/g, '')
     setUsername(cleaned)
-    // Mock availability check
-    setUsernameAvailable(cleaned.length >= 3 ? true : null)
+    setUsernameAvailable(null)
+    if (cleaned.length < 3) return
+    // Real availability check against DB
+    supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', cleaned)
+      .maybeSingle()
+      .then(({ data }) => {
+        setUsernameAvailable(data === null)
+      })
   }
 
   async function saveProfile() {
     if (!user) return
     setSaving(true)
-    try {
-      const normalizedPhone = phone.trim() ? normalizePhone(phone.trim()) : null
-      await supabase.from('profiles').upsert({
-        id: user.id,
-        username: username || user.user_metadata?.full_name?.toLowerCase().replace(/\s+/g, '_') || 'user',
-        display_name: user.user_metadata?.full_name || 'User',
-        avatar_url: user.user_metadata?.avatar_url || null,
-        bio: bio || null,
-        location: location || null,
-        ...(normalizedPhone ? { phone: normalizedPhone } : {}),
-      })
-    } catch {
-      // Placeholder credentials — save will fail gracefully
-    }
+    setSaveError(null)
+    const normalizedPhone = phone.trim() ? normalizePhone(phone.trim()) : null
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      username: username || user.user_metadata?.full_name?.toLowerCase().replace(/\s+/g, '_') || 'user',
+      display_name: user.user_metadata?.full_name || 'User',
+      avatar_url: user.user_metadata?.avatar_url || null,
+      bio: bio || null,
+      location: location || null,
+      ...(normalizedPhone ? { phone: normalizedPhone } : {}),
+    })
     setSaving(false)
+    if (error) {
+      setSaveError('Could not save profile. Please try again.')
+      return
+    }
     goTo(4)
   }
 
@@ -395,6 +406,9 @@ export default function OnboardingPage() {
                   {saving ? 'Saving...' : 'Continue'}
                 </button>
               </div>
+              {saveError && (
+                <p className="text-red-400 text-sm text-center mt-3">{saveError}</p>
+              )}
             </div>
           )}
 
