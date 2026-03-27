@@ -1,11 +1,11 @@
 {
   "name": "Pulse",
   "short_name": "Pulse",
-  "description": "Discover, connect, and explore with Pulse",
+  "description": "Discover what's happening around you",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0D0D1A",
+  "background_color": "#0A0A0F",
   "theme_color": "#7C3AED",
   "icons": [
     {

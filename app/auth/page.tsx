@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 export default function AuthPage() {
@@ -63,17 +64,42 @@ export default function AuthPage() {
       <div className="relative z-10 flex flex-col items-center w-full max-w-[340px]">
         {/* Logo */}
         <div className="mb-3">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <rect width="48" height="48" rx="14" fill="url(#logoGrad)" />
+          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+            <rect width="56" height="56" rx="28" fill="#0D0D14"/>
+            <rect width="56" height="56" rx="28" fill="url(#circleGrad)" fillOpacity="0.15"/>
+            {/* Glow layer */}
             <path
-              d="M24 14C20.134 14 17 17.134 17 21c0 5.25 7 13 7 13s7-7.75 7-13c0-3.866-3.134-7-7-7zm0 9.5a2.5 2.5 0 110-5 2.5 2.5 0 010 5z"
-              fill="white"
+              d="M8 28 L16 28 L19 20 L22 36 L25 16 L28 38 L31 22 L34 32 L37 28 L48 28"
+              stroke="url(#waveGrad)"
+              strokeWidth="3.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              filter="url(#glow)"
+            />
+            {/* Sharp layer on top */}
+            <path
+              d="M8 28 L16 28 L19 20 L22 36 L25 16 L28 38 L31 22 L34 32 L37 28 L48 28"
+              stroke="url(#waveGrad)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
             <defs>
-              <linearGradient id="logoGrad" x1="0" y1="0" x2="48" y2="48">
-                <stop stopColor="#7C3AED" />
-                <stop offset="1" stopColor="#EC4899" />
+              <linearGradient id="waveGrad" x1="8" y1="28" x2="48" y2="28" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#A855F7"/>
+                <stop offset="1" stopColor="#EC4899"/>
               </linearGradient>
+              <linearGradient id="circleGrad" x1="0" y1="0" x2="56" y2="56">
+                <stop stopColor="#7C3AED"/>
+                <stop offset="1" stopColor="#EC4899"/>
+              </linearGradient>
+              <filter id="glow" x="-20%" y="-60%" width="140%" height="220%">
+                <feGaussianBlur stdDeviation="2.5" result="blur"/>
+                <feMerge>
+                  <feMergeNode in="blur"/>
+                  <feMergeNode in="blur"/>
+                </feMerge>
+              </filter>
             </defs>
           </svg>
         </div>
@@ -162,9 +188,9 @@ export default function AuthPage() {
         {/* Terms */}
         <p className="text-[#94A3B8]/60 text-[11px] text-center mt-8 leading-relaxed">
           By continuing you agree to our{' '}
-          <span className="text-[#94A3B8]/80 underline underline-offset-2">Terms of Service</span>
+          <Link href="/terms" className="text-[#94A3B8]/80 underline underline-offset-2">Terms of Service</Link>
           {' '}&{' '}
-          <span className="text-[#94A3B8]/80 underline underline-offset-2">Privacy Policy</span>
+          <Link href="/privacy" className="text-[#94A3B8]/80 underline underline-offset-2">Privacy Policy</Link>
         </p>
       </div>
 
