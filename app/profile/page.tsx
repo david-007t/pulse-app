@@ -6,6 +6,14 @@ import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { createClient } from '@/lib/supabase/client'
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 10) return '+1' + digits
+  if (digits.length === 11 && digits[0] === '1') return '+' + digits
+  if (digits.length > 6) return '+' + digits
+  return ''
+}
+
 const MOCK_PROFILE = {
   display_name: 'Alex Rivera',
   username: 'alex_rivera',
@@ -23,6 +31,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editBio, setEditBio] = useState('')
+  const [editPhone, setEditPhone] = useState('')
   const [editLocation, setEditLocation] = useState('')
   const [saving, setSaving] = useState(false)
   const [friendCount, setFriendCount] = useState<number>(0)
@@ -62,6 +71,7 @@ export default function ProfilePage() {
   function startEditing() {
     setEditName(displayName)
     setEditBio(bio || '')
+    setEditPhone(profile?.phone || '')
     setEditLocation(userLocation || '')
     setEditing(true)
   }
@@ -70,6 +80,7 @@ export default function ProfilePage() {
     if (!user) return
     setSaving(true)
     try {
+      const normalizedPhone = editPhone.trim() ? normalizePhone(editPhone.trim()) : null
       const { data } = await supabase
         .from('profiles')
         .upsert({
@@ -77,6 +88,7 @@ export default function ProfilePage() {
           username,
           display_name: editName,
           bio: editBio || null,
+          phone: normalizedPhone,
           location: editLocation || null,
           avatar_url: avatarUrl,
         })
@@ -185,6 +197,13 @@ export default function ProfilePage() {
               className="w-full bg-[#13131A] border border-[#1E1E2E] rounded-xl py-2 px-3 text-[#F1F5F9] text-sm text-center focus:outline-none focus:border-[#7C3AED] resize-none"
               placeholder="Bio"
               rows={2}
+            />
+            <input
+              type="tel"
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+              className="w-full bg-[#13131A] border border-[#1E1E2E] rounded-xl py-2 px-3 text-[#F1F5F9] text-sm text-center focus:outline-none focus:border-[#7C3AED]"
+              placeholder="+1 (555) 000-0000"
             />
             <input
               value={editLocation}

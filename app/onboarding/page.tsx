@@ -7,6 +7,14 @@ import { User } from '@supabase/supabase-js'
 
 const TOTAL_STEPS = 4
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length === 10) return '+1' + digits
+  if (digits.length === 11 && digits[0] === '1') return '+' + digits
+  if (digits.length > 6) return '+' + digits
+  return ''
+}
+
 export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -19,6 +27,7 @@ export default function OnboardingPage() {
   const [username, setUsername] = useState('')
   const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
   const [bio, setBio] = useState('')
+  const [phone, setPhone] = useState('')
   const [location, setLocation] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -53,6 +62,7 @@ export default function OnboardingPage() {
     if (!user) return
     setSaving(true)
     try {
+      const normalizedPhone = phone.trim() ? normalizePhone(phone.trim()) : null
       await supabase.from('profiles').upsert({
         id: user.id,
         username: username || user.user_metadata?.full_name?.toLowerCase().replace(/\s+/g, '_') || 'user',
@@ -60,6 +70,7 @@ export default function OnboardingPage() {
         avatar_url: user.user_metadata?.avatar_url || null,
         bio: bio || null,
         location: location || null,
+        ...(normalizedPhone ? { phone: normalizedPhone } : {}),
       })
     } catch {
       // Placeholder credentials — save will fail gracefully
@@ -319,6 +330,20 @@ export default function OnboardingPage() {
                 </span>
               </div>
 
+              {/* Phone */}
+              <label className="text-[#94A3B8] text-xs uppercase tracking-wider font-semibold mb-2">
+                Phone (Optional)
+              </label>
+              <div className="relative mb-6">
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1 (555) 000-0000"
+                  className="w-full bg-[#13131A] border border-[#1E1E2E] rounded-2xl py-3.5 px-4 text-[#F1F5F9] text-sm placeholder:text-[#94A3B8]/40 focus:outline-none focus:border-[#7C3AED] transition-colors"
+                />
+              </div>
+
               {/* Location */}
               <label className="text-[#94A3B8] text-xs uppercase tracking-wider font-semibold mb-2">
                 Location
@@ -351,6 +376,7 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => {
                     setBio('')
+                    setPhone('')
                     setLocation('')
                     saveProfile()
                   }}
