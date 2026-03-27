@@ -38,10 +38,10 @@ export default function OnboardingPage() {
       // If profile already exists, skip onboarding
       const { data: existing } = await supabase
         .from('profiles')
-        .select('id')
+        .select('id, username')
         .eq('id', user.id)
-        .single()
-      if (existing) {
+        .maybeSingle()
+      if (existing?.username) {
         router.replace('/')
         return
       }

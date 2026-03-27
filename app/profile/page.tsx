@@ -14,13 +14,6 @@ function normalizePhone(phone: string): string {
   return ''
 }
 
-const MOCK_PROFILE = {
-  display_name: 'Alex Rivera',
-  username: 'alex_rivera',
-  bio: 'Night owl. Music lover. Always exploring.',
-  avatar_url: null as string | null,
-  location: 'San Francisco, CA',
-}
 
 export default function ProfilePage() {
   const router = useRouter()
