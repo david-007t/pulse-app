@@ -33,9 +33,20 @@ export default function OnboardingPage() {
   const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      // If profile already exists, skip onboarding
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id, username')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (existing?.username) {
+        router.replace('/')
+        return
+      }
       setUser(user)
-      if (user?.user_metadata?.full_name) {
+      if (user.user_metadata?.full_name) {
         const name = user.user_metadata.full_name.toLowerCase().replace(/\s+/g, '_')
         setUsername(name)
       }
