@@ -64,41 +64,43 @@ export default function AuthPage() {
       <div className="relative z-10 flex flex-col items-center w-full max-w-[340px]">
         {/* Logo */}
         <div className="mb-3">
-          <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-            <rect width="56" height="56" rx="28" fill="#0D0D14"/>
-            <rect width="56" height="56" rx="28" fill="url(#circleGrad)" fillOpacity="0.15"/>
-            {/* Glow layer */}
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            {/* Dark circle background */}
+            <circle cx="32" cy="32" r="32" fill="#0D0D16"/>
+            {/* Subtle inner rim */}
+            <circle cx="32" cy="32" r="31" stroke="url(#rimGrad)" strokeWidth="0.5" strokeOpacity="0.3" fill="none"/>
+
+            {/* Glow layer — blurred duplicate for glow effect only */}
             <path
-              d="M8 28 L16 28 L19 20 L22 36 L25 16 L28 38 L31 22 L34 32 L37 28 L48 28"
-              stroke="url(#waveGrad)"
-              strokeWidth="3.5"
+              d="M6 32 L18 32 L21 27 L24 37 L27 18 L30 44 L33 26 L36 34 L39 32 L58 32"
+              stroke="url(#pulseGrad)"
+              strokeWidth="4"
               strokeLinecap="round"
               strokeLinejoin="round"
-              filter="url(#glow)"
+              filter="url(#neonGlow)"
+              strokeOpacity="0.6"
             />
-            {/* Sharp layer on top */}
+            {/* Sharp crisp line on top */}
             <path
-              d="M8 28 L16 28 L19 20 L22 36 L25 16 L28 38 L31 22 L34 32 L37 28 L48 28"
-              stroke="url(#waveGrad)"
-              strokeWidth="2"
+              d="M6 32 L18 32 L21 27 L24 37 L27 18 L30 44 L33 26 L36 34 L39 32 L58 32"
+              stroke="url(#pulseGrad)"
+              strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
+
             <defs>
-              <linearGradient id="waveGrad" x1="8" y1="28" x2="48" y2="28" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#A855F7"/>
-                <stop offset="1" stopColor="#EC4899"/>
+              <linearGradient id="pulseGrad" x1="6" y1="32" x2="58" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stopColor="#B47FFF"/>
+                <stop offset="0.5" stopColor="#D168F0"/>
+                <stop offset="1" stopColor="#F472B6"/>
               </linearGradient>
-              <linearGradient id="circleGrad" x1="0" y1="0" x2="56" y2="56">
+              <linearGradient id="rimGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
                 <stop stopColor="#7C3AED"/>
                 <stop offset="1" stopColor="#EC4899"/>
               </linearGradient>
-              <filter id="glow" x="-20%" y="-60%" width="140%" height="220%">
-                <feGaussianBlur stdDeviation="2.5" result="blur"/>
-                <feMerge>
-                  <feMergeNode in="blur"/>
-                  <feMergeNode in="blur"/>
-                </feMerge>
+              <filter id="neonGlow" x="-15%" y="-80%" width="130%" height="260%">
+                <feGaussianBlur stdDeviation="2" result="blur"/>
               </filter>
             </defs>
           </svg>
