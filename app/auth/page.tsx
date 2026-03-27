@@ -62,46 +62,6 @@ export default function AuthPage() {
 
       {/* Content */}
       <div className="relative z-10 flex flex-col items-center w-full max-w-[340px]">
-        {/* Logo */}
-        <div className="mb-3">
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
-            {/* Dark circle with purple tint */}
-            <circle cx="36" cy="36" r="36" fill="#0E0B1A"/>
-            <circle cx="36" cy="36" r="35.5" stroke="url(#rimG)" strokeWidth="1" strokeOpacity="0.25" fill="none"/>
-
-            {/* === Outer halo glow (widest, most diffuse) === */}
-            <path d="M4 36 L14 36 C16 36 17 30 19 28 C21 26 22 32 23 36 C24 40 25 44 27 42 C28 40 29 36 30 36 L31 36 L33 8 L35 58 L37 30 L39 36 L41 36 C43 36 45 26 47 24 C49 22 51 36 53 36 L68 36"
-              stroke="url(#wG)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round"
-              filter="url(#outerGlow)" strokeOpacity="0.25"/>
-
-            {/* === Mid glow === */}
-            <path d="M4 36 L14 36 C16 36 17 30 19 28 C21 26 22 32 23 36 C24 40 25 44 27 42 C28 40 29 36 30 36 L31 36 L33 8 L35 58 L37 30 L39 36 L41 36 C43 36 45 26 47 24 C49 22 51 36 53 36 L68 36"
-              stroke="url(#wG)" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"
-              filter="url(#midGlow)" strokeOpacity="0.5"/>
-
-            {/* === Sharp bright line on top === */}
-            <path d="M4 36 L14 36 C16 36 17 30 19 28 C21 26 22 32 23 36 C24 40 25 44 27 42 C28 40 29 36 30 36 L31 36 L33 8 L35 58 L37 30 L39 36 L41 36 C43 36 45 26 47 24 C49 22 51 36 53 36 L68 36"
-              stroke="url(#wG)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-
-            <defs>
-              <linearGradient id="wG" x1="4" y1="36" x2="68" y2="36" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#B57BFF"/>
-                <stop offset="0.45" stopColor="#D46EF5"/>
-                <stop offset="1" stopColor="#F472B6"/>
-              </linearGradient>
-              <linearGradient id="rimG" x1="0" y1="0" x2="72" y2="72" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#7C3AED"/>
-                <stop offset="1" stopColor="#EC4899"/>
-              </linearGradient>
-              <filter id="outerGlow" x="-20%" y="-120%" width="140%" height="340%">
-                <feGaussianBlur stdDeviation="4" result="blur"/>
-              </filter>
-              <filter id="midGlow" x="-15%" y="-80%" width="130%" height="260%">
-                <feGaussianBlur stdDeviation="2.5" result="blur"/>
-              </filter>
-            </defs>
-          </svg>
-        </div>
 
         <h1
           className="text-4xl font-bold tracking-tight mb-2"
