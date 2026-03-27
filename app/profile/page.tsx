@@ -30,25 +30,23 @@ export default function ProfilePage() {
 
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
+  const [editUsername, setEditUsername] = useState('')
   const [editBio, setEditBio] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editLocation, setEditLocation] = useState('')
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [friendCount, setFriendCount] = useState<number>(0)
 
   const loading = authLoading || profileLoading
 
-  // Derive display data — use profile if available, fallback to user metadata, then mock
-  const displayName =
-    profile?.display_name ||
-    user?.user_metadata?.full_name ||
-    MOCK_PROFILE.display_name
-  const username =
-    profile?.username || user?.email?.split('@')[0] || MOCK_PROFILE.username
-  const bio = profile?.bio || MOCK_PROFILE.bio
-  const avatarUrl =
-    profile?.avatar_url || user?.user_metadata?.avatar_url || MOCK_PROFILE.avatar_url
-  const userLocation = profile?.location || MOCK_PROFILE.location
+  // Derive display data — use profile if available, fallback to user metadata only
+  const displayName = profile?.display_name || user?.user_metadata?.full_name || ''
+  const username = profile?.username || user?.email?.split('@')[0] || ''
+  const bio = profile?.bio || ''
+  const avatarUrl = profile?.avatar_url || user?.user_metadata?.avatar_url || null
+  const userLocation = profile?.location || ''
 
   // Fetch friend count
   useEffect(() => {
@@ -70,35 +68,55 @@ export default function ProfilePage() {
 
   function startEditing() {
     setEditName(displayName)
+    setEditUsername(username)
     setEditBio(bio || '')
     setEditPhone(profile?.phone || '')
     setEditLocation(userLocation || '')
+    setUsernameAvailable(null)
+    setSaveError(null)
     setEditing(true)
+  }
+
+  function handleUsernameChange(value: string) {
+    const cleaned = value.toLowerCase().replace(/[^a-z0-9_]/g, '')
+    setEditUsername(cleaned)
+    setUsernameAvailable(null)
+    if (cleaned.length < 3) return
+    if (cleaned === username) { setUsernameAvailable(true); return }
+    supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', cleaned)
+      .maybeSingle()
+      .then(({ data }) => setUsernameAvailable(data === null))
   }
 
   async function saveEdits() {
     if (!user) return
+    if (editUsername.length < 3) { setSaveError('Username must be at least 3 characters.'); return }
+    if (usernameAvailable === false) { setSaveError('Username is already taken.'); return }
     setSaving(true)
-    try {
-      const normalizedPhone = editPhone.trim() ? normalizePhone(editPhone.trim()) : null
-      const { data } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          username,
-          display_name: editName,
-          bio: editBio || null,
-          phone: normalizedPhone,
-          location: editLocation || null,
-          avatar_url: avatarUrl,
-        })
-        .select()
-        .single()
-      if (data) setProfile(data)
-    } catch {
-      // Placeholder credentials — silently fail
-    }
+    setSaveError(null)
+    const normalizedPhone = editPhone.trim() ? normalizePhone(editPhone.trim()) : null
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: user.id,
+        username: editUsername,
+        display_name: editName,
+        bio: editBio || null,
+        phone: normalizedPhone,
+        location: editLocation || null,
+        avatar_url: avatarUrl,
+      })
+      .select()
+      .single()
     setSaving(false)
+    if (error) {
+      setSaveError('Could not save. Please try again.')
+      return
+    }
+    if (data) setProfile(data)
     setEditing(false)
   }
 
@@ -191,6 +209,26 @@ export default function ProfilePage() {
               className="w-full bg-[#13131A] border border-[#1E1E2E] rounded-xl py-2 px-3 text-[#F1F5F9] text-sm text-center focus:outline-none focus:border-[#7C3AED]"
               placeholder="Display name"
             />
+            <div className="relative">
+              <input
+                value={editUsername}
+                onChange={(e) => handleUsernameChange(e.target.value)}
+                className={`w-full bg-[#13131A] border rounded-xl py-2 px-3 text-[#F1F5F9] text-sm text-center focus:outline-none transition-colors ${
+                  usernameAvailable === false
+                    ? 'border-red-500'
+                    : usernameAvailable === true
+                    ? 'border-[#34D399]'
+                    : 'border-[#1E1E2E] focus:border-[#7C3AED]'
+                }`}
+                placeholder="username"
+              />
+              {usernameAvailable === true && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#34D399] text-xs">✓</span>
+              )}
+              {usernameAvailable === false && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 text-xs">taken</span>
+              )}
+            </div>
             <textarea
               value={editBio}
               onChange={(e) => setEditBio(e.target.value.slice(0, 150))}
@@ -211,6 +249,9 @@ export default function ProfilePage() {
               className="w-full bg-[#13131A] border border-[#1E1E2E] rounded-xl py-2 px-3 text-[#F1F5F9] text-sm text-center focus:outline-none focus:border-[#7C3AED]"
               placeholder="Location"
             />
+            {saveError && (
+              <p className="text-red-400 text-xs text-center">{saveError}</p>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={() => setEditing(false)}
@@ -220,7 +261,7 @@ export default function ProfilePage() {
               </button>
               <button
                 onClick={saveEdits}
-                disabled={saving}
+                disabled={saving || usernameAvailable === false}
                 className="flex-1 py-2 rounded-full bg-[#7C3AED] text-white text-sm font-semibold disabled:opacity-60"
               >
                 {saving ? 'Saving...' : 'Save'}
